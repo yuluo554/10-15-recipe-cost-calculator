@@ -34,3 +34,12 @@ Thumbs.db
 *.log
 tmp/
 .cache/
+
+# 草稿/验证产物（一律写在仓库树外或此处——别让验证动作污染被验证对象）
+out/
+.pytest_cache/
+_backups/
+
+# PyInstaller 构建产物与 spec 例外（spec 入仓时加 !tools/*.spec）
+*.spec
+!tools/*.spec

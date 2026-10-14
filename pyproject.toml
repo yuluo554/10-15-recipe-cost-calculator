@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recipe-cost-calculator"
+version = "0.1.0"
+description = "菜谱/食堂采购成本核算器：进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警（确定性规则引擎，纯本地）"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "yuluo554" }]
+keywords = ["recipe", "cost", "catering", "cost-card", "yield-rate", "deterministic"]
+classifiers = [
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Office/Business",
+]
+dependencies = []
+
+[project.optional-dependencies]
+# GUI 交付形态（重件，仅界面层需要）
+gui = ["PySide6>=6.6,<7"]
+# 测试期依赖：测试套件真 import 的每个库都必须在这里（测试面 = 安装面）
+dev = [
+    "pytest>=7.0",
+    "pyyaml>=6.0",
+]
+# 构建期依赖（不进运行时必需面）
+# PyInstaller >=6 是硬下限：打 PySide6 GUI 时 5.x 确定性崩在
+# "Instruction object is not iterable"。setuptools 上限见 README 已知环境问题。
+build = [
+    "PyInstaller>=6.0",
+    "setuptools<81",
+]
+
+[project.scripts]
+rcc = "rcc.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yuluo554/10-15-recipe-cost-calculator"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "gui: 需要 PySide6 的界面测试（缺依赖时模块级跳过）",
+]

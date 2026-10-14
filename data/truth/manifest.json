@@ -1,0 +1,53 @@
+{
+  "schema_version": "1",
+  "generated_by": "tools/gen_truth.py",
+  "note": "本文件为生成器冻结产物，禁止手改。验收门槛随本文件下发（数据非代码）——基准层只读，缺失即配置错误（退出码 2），不得回落代码默认值。",
+  "thresholds": {
+    "import": {
+      "min_pass_rate": "0.95",
+      "max_false_positive_rate": "0.0",
+      "max_duration_seconds": "10"
+    },
+    "costcard": {
+      "min_pass_rate": "0.95",
+      "max_false_positive_rate": "0.0",
+      "max_duration_seconds": "10"
+    },
+    "alert": {
+      "min_pass_rate": "0.95",
+      "max_false_positive_rate": "0.0",
+      "max_duration_seconds": "10"
+    },
+    "boundary": {
+      "min_pass_rate": "1.0",
+      "max_false_positive_rate": "0.0",
+      "max_duration_seconds": "10"
+    },
+    "reconcile": {
+      "min_pass_rate": "1.0",
+      "max_false_positive_rate": "0.0",
+      "max_duration_seconds": "10"
+    }
+  },
+  "coverage": {
+    "note": "覆盖度按「总数/采样数」双登记；只写分子即假覆盖。M4 实测后回填总数与采样清单。",
+    "import": {
+      "forms_total": 0,
+      "forms_sampled": 0,
+      "sampled_forms": [],
+      "declaration": "抽样覆盖，非逐形态穷举（M4 回填）"
+    },
+    "costcard": {
+      "forms_total": 0,
+      "forms_sampled": 0,
+      "sampled_forms": [],
+      "declaration": "抽样覆盖，非逐形态穷举（M4 回填）"
+    },
+    "alert": {
+      "forms_total": 0,
+      "forms_sampled": 0,
+      "sampled_forms": [],
+      "declaration": "抽样覆盖，非逐形态穷举（M4 回填）"
+    }
+  }
+}

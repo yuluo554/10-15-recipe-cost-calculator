@@ -1,0 +1,131 @@
+{
+  "alert": {
+    "threshold": {
+      "source": {
+        "date": null,
+        "kind": "user",
+        "note": "示例阈值（非官方），用户可配置",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.10"
+    }
+  },
+  "generated_by": "tools/gen_params.py",
+  "note": "本文件为生成器冻结产物，禁止手改；改需求请重跑生成器。",
+  "pricing": {
+    "target_margin": {
+      "source": {
+        "date": null,
+        "kind": "user",
+        "note": "示例值（非官方），用户须按自身经营情况配置",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.60"
+    }
+  },
+  "schema_version": "1",
+  "yield_rates": {
+    "土豆": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "块茎类去皮后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.90"
+    },
+    "大白菜": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "叶菜类去外叶与根部后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.85"
+    },
+    "娃娃菜": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "叶菜类去外叶后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.88"
+    },
+    "小白菜": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "叶菜类去根去黄叶后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.80"
+    },
+    "洋葱": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "鳞茎类去外皮后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.88"
+    },
+    "牛肉": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "去筋膜与修整后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.92"
+    },
+    "猪肉": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "去包装与筋膜后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.95"
+    },
+    "胡萝卜": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "根茎类去皮去头尾后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.85"
+    },
+    "草鱼": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "活鱼去鳞去内脏去头后的出成率经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.55"
+    },
+    "鸡蛋": {
+      "source": {
+        "date": null,
+        "kind": "builtin_experience",
+        "note": "带壳蛋去壳后的可食部分经验值（内置经验默认值，非官方数据；用户可覆盖）",
+        "ref": "plan/02-算法与口径说明.md#参数体系"
+      },
+      "status": "verified",
+      "value": "0.90"
+    }
+  }
+}

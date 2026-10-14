@@ -1,0 +1,16 @@
+# 源码行尾归一（跨平台 clone 不漂移）
+* text=auto eol=lf
+
+# 字节冻结快照：抓取的原始响应件按台账登记 sha256，
+# 绝不能被检出时的 EOL 归一改写字节
+*.pdf binary
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.exe binary
+
+# 快照目录下的原始响应与冻结 fixtures 一律不走文本归一
+data/snapshots/** -text
+data/truth/**/*.json -text
