@@ -56,6 +56,12 @@ jobs:
           python tools/check_literals.py --selftest
           python tools/check_literals.py
 
+      - name: Desensitization audit (with selftest)
+        # 随 CI 常驻：发布期才发现"仓库含真实个人信息"的代价是全历史重写
+        run: |
+          python tools/audit_desensitize.py --selftest
+          python tools/audit_desensitize.py
+
       - name: Run tests
         run: python -m pytest -q
 

@@ -15,13 +15,15 @@ import pytest
 
 # 3.9+ / 3.10+ 才有的 API：``名字`` → 引入版本
 NEWER_APIS = {
-    "write_text": "Path.write_text(newline=) 是 3.10+ 参数",
     "removeprefix": "str.removeprefix 是 3.9+",
     "removesuffix": "str.removesuffix 是 3.9+",
     "pairwise": "itertools.pairwise 是 3.10+",
     "anext": "builtins.anext 是 3.10+",
-    "zip_strict": "zip(strict=) 是 3.10+",
 }
+
+# ``write_text``/``write_bytes`` 的 ``newline=`` 参数是 3.10+ 才有
+# （3.8 上直接 TypeError——本项目实测踩过）。只查该关键字，不查 encoding=。
+NEWLINE_KWARG_APIS = {"write_text", "write_bytes"}
 
 SCAN_DIRS = ("src", "tools", "benchmark", "tests")
 
@@ -44,20 +46,28 @@ def test_no_newer_stdlib_api_usage(repo_root):
     for path in _python_files(repo_root):
         tree = ast.parse(open(path, "r", encoding="utf-8").read())
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                func = node.func
-                name = None
-                if isinstance(func, ast.Attribute):
-                    name = func.attr
-                elif isinstance(func, ast.Name):
-                    name = func.id
-                if name in NEWER_APIS:
-                    # 只在真传了关键字参数时判 write_text
-                    if name == "write_text" and not node.keywords:
-                        continue
-                    offenders.append("%s:%d %s（%s）" % (
-                        os.path.relpath(path, repo_root).replace(os.sep, "/"),
-                        node.lineno, name, NEWER_APIS[name]))
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = None
+            if isinstance(func, ast.Attribute):
+                name = func.attr
+            elif isinstance(func, ast.Name):
+                name = func.id
+
+            if name in NEWER_APIS:
+                offenders.append("%s:%d %s（%s）" % (
+                    os.path.relpath(path, repo_root).replace(os.sep, "/"),
+                    node.lineno, name, NEWER_APIS[name]))
+                continue
+
+            # write_text/write_bytes 只有传了 newline= 才是 3.10+ 用法
+            if name in NEWLINE_KWARG_APIS:
+                for keyword in node.keywords:
+                    if keyword.arg == "newline":
+                        offenders.append("%s:%d %s(newline=)（3.10+ 参数，3.8 报 TypeError）" % (
+                            os.path.relpath(path, repo_root).replace(os.sep, "/"),
+                            node.lineno, name))
     assert not offenders, "使用了 3.9+/3.10+ 才有的 API（3.8 会挂）: %s" % offenders
 
 
@@ -128,8 +138,18 @@ def test_compat_guard_is_not_vacuous():
     tree = ast.parse(bad_source)
     found = [n for n in ast.walk(tree)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-             and n.func.attr == "write_text" and n.keywords]
+             and n.func.attr in NEWLINE_KWARG_APIS
+             and any(k.arg == "newline" for k in n.keywords)]
     assert found, "write_text(newline=) 探测机制失效"
+
+    # 阴性：只传 encoding= 的 write_text 是合法用法（3.8 也有）
+    ok_source = "def f(p):\n    p.write_text('x', encoding='utf-8')\n"
+    tree = ast.parse(ok_source)
+    bad = [n for n in ast.walk(tree)
+           if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+           and n.func.attr in NEWLINE_KWARG_APIS
+           and any(k.arg == "newline" for k in n.keywords)]
+    assert not bad, "只传 encoding= 被误判（阴性对照失败）"
 
     bad_annotation = "def f(a: int | None) -> None:\n    pass\n"
     tree = ast.parse(bad_annotation)

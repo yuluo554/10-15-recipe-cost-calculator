@@ -34,6 +34,9 @@
 | 2026-10-15 | **提交邮箱必须全历史改写** | M0 实测本机 `git config user.email` 为真实个人邮箱（非占位），发布前用 `git filter-repo` 全历史改写为 GitHub noreply；本地 config 同步改 |
 | 2026-10-15 | **参数门控按计算路径分作用域**（`cost`/`pricing`/`alert` 三 scope + 第三态 `input_required`） | 不用"整包全 verified"当唯一门——否则与核算无关的 pending 会阻断整个核算路径，使 M3 的"出数"不可达 |
 | 2026-10-15 | **数据底座复核通过（新发地 API 支持历史日期查询）** | M0 实测 `pubDateStartTime`/`pubDateEndTime` 可取指定日快照，2026-08-06/09-06/10-06 大白菜 0.55/0.53/0.40 元/斤与题面一致；`prodName`+`prodPcatid` 组合过滤有效（**仅 prodName 单独过滤无效**——题面注记据此勘误）；品类 id 实测 1186 蔬菜 / 1187 水果 / 1189 肉禽蛋 / 1190 水产 |
+| 2026-10-15 | **提交邮箱在 M0 即完成全历史改写**（未推送窗口） | M0 实测本地仓历史含真实个人邮箱；按"未推送窗口是历史修正的零成本期"纪律，用 `git filter-repo --email-callback` 全历史改写为 GitHub noreply（id 取 `gh api user --jq .id`），本地 `git config user.email` 同步改。改写后 `git log --format='%ae %ce' --all \| sort -u` 只剩一个 noreply 值，`git fsck` 无异常。**M6 不再需要动历史** |
+| 2026-10-15 | **脱敏审计器于 M0 即入仓**（不推迟到发布期） | `tools/audit_desensitize.py`：四模式（tracked/history/messages/dist）+ `--selftest` 阳性对照 + **历史通道探活**；token 运行时实算（邮箱从 git 元数据、用户名从 `getpass`、盘符从仓库路径），**源码与留档零词面**；命中分级 HARD/REVIEW/advisory + 行内 `audit-allow` 放行；输出一律掩码化。随全量测试常驻（7 项守门） |
+| 2026-10-15 | **Python 3.8 兼容门入仓** | M0 实测 `Path.write_text(newline=)` 是 3.10+ 参数——3.12 全绿而 3.8 上 36 项测试 TypeError。处置 = 全部改 `open(..., newline="\n")` + 新增 AST 扫描门（`tests/guards/test_py38_compat.py`），在 3.12 上即可提前发现 3.9+/3.10+ API 误用，不必等 CI 的 win-3.8 作业 |
 
 ## 三、承诺-证据台账
 
@@ -53,7 +56,7 @@
 
 | 里程碑 | 内容 | DoD 要点 | 状态 |
 |---|---|---|---|
-| **M0 骨架** | plan/00–06 定稿、目录布局、pyproject、包骨架、CLI 入口、编码守卫、EOL 门、零字面量门禁、CI workflow、测试骨架、HANDOFF-M1 | 骨架可安装可跑（`rcc --version`）、守门测试绿（含变异验证）、CI 配置合法 | ✅ 2026-10-15 |
+| **M0 骨架** | plan/00–06 定稿、目录布局、pyproject、包骨架、CLI 入口、编码守卫、EOL 门、零字面量门禁、脱敏审计器、CI workflow、测试骨架、HANDOFF-M1 | 骨架可安装可跑（`rcc --version`）、守门测试绿（含变异验证）、CI 配置合法 | ✅ 2026-10-15（137 项测试双解释器全绿；CI 未接远端，本地等价校验通过） |
 | M1 数据先行 | 新发地快照抓取留档（≥3 个可区分日期版本）、原始 JSON + 抓取日期 + sha256 台账、`-text` 冻结 | 快照可复现抓取、`--check` 位级一致 | ⬜ |
 | M2 导入 | 进货单 CSV/Excel 解析、异常行清单、食材库、三态语义 | 样例导入复跑通过、失败路径测试齐 | ⬜ |
 | M3 核算引擎 | 净料换算 F1、BOM 汇总 F2、毛利率 F3/F4、口径单一定义落地、参数门控三 scope | 公式与注记同源一致、零字面量门禁绿 | ⬜ |

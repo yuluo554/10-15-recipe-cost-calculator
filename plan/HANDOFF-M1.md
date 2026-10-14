@@ -17,8 +17,10 @@
 | 零字面量门禁 | ✅ | `tools/check_literals.py` → `LITERAL_GATE_OK: 扫描面 16 个入口，禁用 token 31 个，0 命中`；`--selftest` → `LITERAL_GATE_SELFTEST_OK` |
 | 冻结产物位级一致 | ✅ | `gen_params.py --check` → `FROZEN_PARAMS_OK`；`gen_samples.py --check` → `FROZEN_SAMPLES_OK` |
 | 基准（规则驱动层） | ✅ | `rcc bench --only boundary` exit 0（29/29）；`--only reconcile` exit 0（4/4）；样本驱动三套件 `not_enabled` + exit 1（**不冒充通过**） |
-| 测试全绿（双解释器） | ✅ | `py -3.12` **129 passed**；`py -3.8` **129 passed**（同一 extras 下计数一致） |
-| 守门变异验证 | ✅ | 故意把 F1 除改乘 → **7 个测试变红**（含边界套件、selftest、CLI 通路），还原后全绿 |
+| 脱敏审计器 | ✅ | `tools/audit_desensitize.py --selftest` → `AUDIT_SELFTEST_OK`；四模式扫描 → `DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW 0 / advisory 2`（advisory 为提交 sha 长 hex，属文档化功能） |
+| **提交邮箱已全历史改写** | ✅ | M0 在"未推送窗口"用 `git filter-repo` 改写完成：`git log --format='%ae %ce' --all \| sort -u` 只剩 **一个 noreply 值**；`git fsck` 干净。**M6 不需再动历史** |
+| 测试全绿（双解释器） | ✅ | `py -3.12` **137 passed**；`py -3.8` **137 passed**（同一 extras 下计数一致） |
+| 守门变异验证 | ✅ | F1 除改乘 → **7 项变红**；审计器邮箱规则破坏 → **2 项变红**；还原后全绿 |
 | EOL 门 + CI 配置 | ✅ | `.gitattributes`（`* text=auto eol=lf` + 快照 `-text`）；`.github/workflows/ci.yml` 三矩阵 + `fetch-depth: 0` + UTF-8 env；CI 门测试全绿 |
 | **CI 真实状态** | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 129 + 门禁 selftest + 生成器 --check），CI 配置已入仓待首推验证** |
 
@@ -33,6 +35,11 @@
    正确判据 = 无 `TargetMode="External"` + **剥掉 XML 标签后的文本内容**无 http。
 4. **零字面量门禁首跑就抓出真违规**——`benchmark/runner.py` 里硬编码了 `0.1`/`0.9`/`0.5`
    等业务数值（F3 单调性探针）。已改为从参数包实算端点。**门禁不是摆设**。
+5. **脱敏审计器探活误用最旧提交**——探针取 `rev-list --all` 最后一项（首个提交），
+   而 README.md 是 M0 才加的，`git show <首提交>:README.md` 取不到 → 探活假失败。
+   处置：探针改为"从 HEAD 的跟踪文件列表里挑一个真存在的文件"。
+6. **`cmd | tail` 吞掉退出码**——`audit_desensitize.py | tail` 后 `$?` 是 `tail` 的，
+   审计 FAIL 被读成成功。**关键命令单独跑、查真实退出码**（或 `${PIPESTATUS[0]}`）。
 
 ### M0 数据底座复核（新增结论，已回写 data/README.md §一之二）
 
@@ -95,7 +102,7 @@
 | 本机有 **3.8.8 与 3.12.10** 两条通道 | 用 3.12 全绿但 3.8 会挂一批 API | 开工先 `py -0p`；**改动后双解释器都跑**（本轮实测 `Path.write_text(newline=)` 只在 3.8 炸） |
 | `python` 可能是商店占位符 | `python -m venv` 失败 | 用 `py -3.12` / `py -3.8`；venv 内用 `python` |
 | `core.autocrlf=true`（本机全局） | 新 clone 会把 LF 翻成 CRLF，冻结件 sha256 失配 | `.gitattributes` `* text=auto eol=lf` + 快照 `-text` + EOL 门守门 |
-| **git 全局 user.email 是真实个人邮箱** | 发布期脱敏硬门 | M6 用 `git filter-repo` 全历史改写为 GitHub noreply；**未推送窗口零成本** |
+| **git 全局 user.email 是真实个人邮箱** | 发布期脱敏硬门 | **M0 已处置**：全历史已用 `git filter-repo` 改写为 noreply，本地 config 已同步。后续每次 `git commit --amend` 都要显式带 `GIT_COMMITTER_EMAIL=<noreply>`（否则 committer 可能回落旧值） |
 | 跨盘符 `os.path.relpath` | `ValueError: path is on mount 'C:', start on 'D:'` | 展示路径 `try/except ValueError` 回落绝对路径 |
 | pip 代理污染 | `https://127.0.0.1:xxxx` 连接失败 | `NO_PROXY="*" no_proxy="*" py -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple <pkg>` |
 | 中文控制台编码 | `UnicodeEncodeError` | 跑脚本一律 `py -X utf8`；入口守卫是另一层（CI/用户机器） |
@@ -113,8 +120,12 @@ remote 后 push（SSH 不受 OAuth scope 限制，携带 workflow 文件也能�
 
 ```bash
 # 双解释器全量测试（收尾必跑）
-PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest -q
-PYTHONDONTWRITEBYTECODE=1 py -3.8  -X utf8 -m pytest -q
+PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest -q    # 137 passed
+PYTHONDONTWRITEBYTECODE=1 py -3.8  -X utf8 -m pytest -q    # 137 passed
+
+# 脱敏审计（新增文档/提交前必跑；**单独跑，别接管道**）
+py -3.12 -X utf8 tools/audit_desensitize.py --selftest     # AUDIT_SELFTEST_OK
+py -3.12 -X utf8 tools/audit_desensitize.py                # DESENSITIZE_AUDIT_OK
 
 # 冻结产物位级一致（改数据后必跑）
 py -3.12 -X utf8 tools/gen_params.py --check      # FROZEN_PARAMS_OK
