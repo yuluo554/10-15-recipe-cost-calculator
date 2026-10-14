@@ -19,10 +19,12 @@
 | 基准（规则驱动层） | ✅ | `rcc bench --only boundary` exit 0（29/29）；`--only reconcile` exit 0（4/4）；样本驱动三套件 `not_enabled` + exit 1（**不冒充通过**） |
 | 脱敏审计器 | ✅ | `tools/audit_desensitize.py --selftest` → `AUDIT_SELFTEST_OK`；四模式扫描 → `DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW 0 / advisory 2`（advisory 为提交 sha 长 hex，属文档化功能） |
 | **提交邮箱已全历史改写** | ✅ | M0 在"未推送窗口"用 `git filter-repo` 改写完成：`git log --format='%ae %ce' --all \| sort -u` 只剩 **一个 noreply 值**；`git fsck` 干净。**M6 不需再动历史** |
-| 测试全绿（双解释器） | ✅ | `py -3.12` **137 passed**；`py -3.8` **137 passed**（同一 extras 下计数一致） |
+| 测试全绿（双解释器） | ✅ | `py -3.12` **138 passed**；`py -3.8` **138 passed**（同一 extras 下计数一致） |
 | 守门变异验证 | ✅ | F1 除改乘 → **7 项变红**；审计器邮箱规则破坏 → **2 项变红**；还原后全绿 |
+| 干净环境验证 | ✅ | 导出树 + 全新 venv：**136 passed / 2 skipped**（无 `.git` 声明式跳过），收集数 138 与开发机一致；README 八步退出码全部符合明示语义 |
 | EOL 门 + CI 配置 | ✅ | `.gitattributes`（`* text=auto eol=lf` + 快照 `-text`）；`.github/workflows/ci.yml` 三矩阵 + `fetch-depth: 0` + UTF-8 env；CI 门测试全绿 |
-| **CI 真实状态** | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 129 + 门禁 selftest + 生成器 --check），CI 配置已入仓待首推验证** |
+| **CI 真实状态** | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 138 + 门禁 selftest + 生成器 --check + 干净环境逐条），CI 配置已入仓待首推验证** |
+| **干净环境验证** | ✅ | `git archive HEAD` 导出跟踪树 + 全新 `py -3.12 -m venv` + 照 README 逐条执行：**136 passed / 2 skipped**（2 项为无 `.git` 的声明式跳过）；收集数 138 **与开发机一致**（同一 extras 下）；README 八步退出码全部符合明示语义（`run`/`check`/`bench`=1、`selftest`=0、**`gui`=3**——后者在无 PySide6 的 venv 里验证了惰性导入 try 覆盖整条路径，开发机装了 extra 永远测不出） |
 
 ### M0 期实测发现的缺陷（都已修，记此防复现）
 
@@ -40,6 +42,14 @@
    处置：探针改为"从 HEAD 的跟踪文件列表里挑一个真存在的文件"。
 6. **`cmd | tail` 吞掉退出码**——`audit_desensitize.py | tail` 后 `$?` 是 `tail` 的，
    审计 FAIL 被读成成功。**关键命令单独跑、查真实退出码**（或 `${PIPESTATUS[0]}`）。
+7. **干净环境抓出"无 `.git` 缺口"**——`git archive` 导出的树没有 `.git`，
+   审计器的历史/提交信息通道整批报错。处置 = 审计器加**无 git 兜底**
+   （退回文件系统遍历，按 `pyvenv.cfg` 特征剪掉 venv）；对应两项守门改
+   **声明式跳过**并在输出里显式声明"历史通道不可用"，不假装扫过。
+8. **脱敏审计器扫到自己的测试夹具**——我在测试里写了字面邮箱形态（`realuser@…`），
+   审计器当场判 HARD 并进了历史。处置 = ①夹具**程序化拼接**（源码零词面）；
+   ②该污染提交**未推送**，走 `git reset --soft` 软重置成单一干净提交（零成本，
+   不必动 filter-repo）。**这正是"未推送窗口是历史修正零成本期"的实证**。
 
 ### M0 数据底座复核（新增结论，已回写 data/README.md §一之二）
 

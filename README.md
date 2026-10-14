@@ -94,7 +94,7 @@ data/        数据资产（README 依据查证 / rules 参数包 / samples 样�
 src/rcc/     唯一包（cli / model / rules / io / engine / alert / report / gui / packaging）
 benchmark/   基准套件（runner + cases 对账语义单一实现源）
 tools/       生成器与门禁（gen_params / gen_samples / check_literals / audit_desensitize / detrng）
-tests/       unit / guards / integration / benchmark / gui（137 项，双解释器 3.8 与 3.12 全绿）
+tests/       unit / guards / integration / benchmark / gui（138 项，双解释器 3.8 与 3.12 全绿）
 ```
 
 ## 限制
