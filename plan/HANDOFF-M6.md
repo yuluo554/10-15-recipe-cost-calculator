@@ -11,7 +11,8 @@
 | 项 | 状态 | 证据 |
 |---|---|---|
 | **PyInstaller onedir 双 exe** | ✅ | 新增 `tools/rcc.spec`（构建规格）+ `tools/launcher_cli.py` / `tools/launcher_gui.py`（冻结态入口）。产物：`rcc.exe`（控制台，1,792,565 B）+ `rcc-gui.exe`（窗口版，1,785,102 B）+ `_internal/`（共 170 个文件，114 MB）。**构建产物留底仓库树外**（`$TEMP/rcc-dist`），树内无 `build/` `dist/` 残留 |
-| **免安装 exe 本地可用（DoD）** | ✅ | 冻结态实测（**中立目录**，非仓库树）：`selftest` exit 0、`bench` 总判达标 exit 0、`run`/`check`/带预警 `run`/`--report` 全可达随包数据。带预警实跑 `预警：141 项超阈值`，与源码态一致 |
+| **免安装 exe 本地可用（DoD）** | ✅ | 冻结态实测（**中立目录**，非仓库树）：`selftest` exit 0、`bench` 总判达标 exit 0、`run`/`check`/带预警 `run`/`--report` 全可达随包数据。带预警实跑 `预警：141 项超阈值`，与源码态一致。**无参数运行 → exit 2**（用法错误语义同源码态） |
+| **窗口真起得来（不只自检通路）** | ✅ | `rcc-gui.exe` 与 `rcc.exe gui` 两条通路在 `QT_QPA_PLATFORM=offscreen` 下**都进入 Qt 事件循环**（8 秒超时后仍在运行、无异常输出、须外部终止）。**`rcc.exe gui` 也能起窗口**：静态分析跟进 `cmd_gui` 函数体内的 `from .gui import main_window`，Qt 因此一并入包；两 exe 共享 `_internal/`，磁盘上只有一份 |
 | **随包数据可达 + 自检断言（DoD 核心）** | ✅ | 中立目录实测 `rcc.exe selftest` → `frozen=true`、**`frozen_data_inside_dist=true`**（`exe=…\rcc`、`data=…\rcc\_internal\data`）；窗口版 `rcc-gui.exe --selftest out.json` → 同样 `true` + 页签 4 个 + exit 0 |
 | **冻结态负向对照**（比"能跑"更强） | ✅ | 删掉 `_internal/data` 后 `selftest` → `data_dir` 与 `params_loadable` 双双 `ok=false`、总判 `ok=false`、**exit 1**。**不静默回落开发机仓库**（`find_data_dir` 冻结分支找不到内嵌数据时返回候选路径交自检判定） |
 | **G-PACK 门（plan/04 §四）** | ✅ | 新增 `tests/guards/test_pack_gate.py`（**20 项**）：spec 无手写数据路径 / 无禁区字面（**取 `FORBIDDEN_IN_DIST`，不复制第二份**）+ AST 断言 `DATAS` 由 `build_datas()` 产生 + **核心断言"包内路径 == 仓库内相对路径"** + 白名单对账 + 冻结判定本身的探活 |
