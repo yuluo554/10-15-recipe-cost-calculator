@@ -157,7 +157,9 @@
 |---|---|---|
 | ① 全历史脱敏三扫 0 硬门 | tracked/history/messages 均 HARD 0 | ✅ |
 | ② 历史坏 blob 修净 | `git fsck` 无悬空敏感对象 | ✅ |
-| ③ 失败 run 已删 | `gh run list` 无含敏感回显的失败 run | ✅ **无失败 run**（截至收尾共 **9 轮 push 事件全部 success**，含 tag push 与 branch push）；且**逐 run 核查过日志**：无邮箱形态、无本机用户名、无个人路径签名 → **无需删除任何 run** |
+| ③ 失败 run 已删 | `gh run list` 无含敏感回显的失败 run | ✅ **无失败 run**——**截至收尾的每一轮 push 事件（含 tag push 与 branch push）均 success**，一条失败记录都没有；且**逐 run 收集日志后核查**：无邮箱形态、无本机用户名、无个人路径签名 → **无需删除任何 run** |
+>
+> **为什么不写具体轮数**：每 push 一次就多一轮 run，写死的数字会立刻过期（本记录撰写期间就发生过一次）。**判据是"有无失败 run"，不是"跑了几轮"**——前者是性质，后者是快照。要核当前轮数用 `gh run list --json databaseId,event,conclusion`。
 
 **顺序**：先清后切是单向门。本仓库**建仓即 public**（`gh repo create --public`），故"三清"在建仓推送**之前**完成——即 §七 与上表①② 的结果都是**推送前**取得的。
 
