@@ -28,10 +28,20 @@
 |---|---|
 | 仓库 | <https://github.com/yuluo554/10-15-recipe-cost-calculator>（public） |
 | 可见性决策 | public（plan/00 决策记录 2026-10-15，用户定夺） |
-| 建仓路径 | `gh repo create --public ... --source . --remote origin`（**不带 `--push`**）→ 切 SSH remote → `git push` |
+| 建仓路径 | `gh repo create --public ... --source . --remote origin`（**不带 `--push`**）→ 切 SSH remote → `git push`（**一次成**，5.3s） |
 | **为什么切 SSH** | 本机 token scopes = `gist, read:org, repo`，**无 `workflow`**；带 workflow 文件走 HTTPS+token 会被 GitHub 拒绝。SSH 不受 OAuth scope 限制 |
 | CI 矩阵 | `windows×{3.8,3.12}` + `ubuntu×3.12`（旧解释器只在 windows 守） |
-| CI 首跑结论 | ⬜ 见 §七（待 push 后按 `head_sha` 逐条配对） |
+| **CI 首跑结论** | ✅ **success**（run <https://github.com/yuluo554/10-15-recipe-cost-calculator/actions/runs/38707578140>） |
+
+**CI 首跑对账**（plan/05 §七：对账单位是 **push 事件** + `head_sha`，不是提交数）：
+
+| push 事件 | `head_sha` | conclusion | 三个 job 各自结论 |
+|---|---|---|---|
+| 1（首次 push，含全部 M6 提交 + 收尾回写） | `65dee9ed` | **success** | `windows-latest/py3.8` ✅ · `windows-latest/py3.12` ✅ · `ubuntu-latest/py3.12` ✅ |
+
+- **每个 job 实测 `321 passed, 1 skipped`**（三个 job 一致）。**为什么是 321 而不是本地 328**：CI 只装 `.[dev]`（无 PySide6），`tests/gui/test_main_window.py` **模块级** skip 把 7 项移出收集面 → 328 − 7 = 321。唯一 skip 的原因在日志里明写：`需要 gui extra（PySide6）`——**声明式跳过，不是失败**。
+- **新增的"控制台脚本冒烟"步骤三个平台都真跑过**（step 级结论 `success`），这正是 M6 头号发现（§六）对应的那一步。
+- **run 日志已核查无敏感回显**：无邮箱形态、无本机用户名、无个人路径签名 → **无需删除任何 run**（plan/05 §八"第三个留档面"）。
 
 ---
 
