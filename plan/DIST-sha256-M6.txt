@@ -1,0 +1,24 @@
+# plan/DIST-sha256-M6.txt — 发布产物 sha256 留档（M6）
+#
+# 生成方式：注释行手写，**哈希行由 sha256sum 输出直接重定向**（plan/05 §五：
+# 手工转录 64 位 hex 错一位肉眼不可查，故不许手抄）。
+# 复验：sha256sum -c <此文件>（在本目录外的产物副本上跑）。
+#
+# 产物基线（"这份 zip 是从哪个提交打出来的"）：
+#   提交 = M6 收尾提交（含本留档与 README 回填；哈希见同提交的 git log）
+#   构建通道 = py -3.12（PyInstaller ≥6，见 pyproject build extra）
+#   构建命令 = py -3.12 -m PyInstaller --clean --noconfirm \
+#                --distpath <树外>/dist --workpath <树外>/build tools/rcc.spec
+#   组装命令 = py -3.12 tools/make_release.py zip --dist <树外>/dist/rcc --out <zip>
+#
+# **可复跑范围的诚实口径**（plan/05 §六，不许含糊）：
+#   - 可复跑的是"**同 dist → 同 zip**"这一步：`tools/make_release.py verify`
+#     两次独立打包逐字节一致（实测背书）；
+#   - **exe 构建本身不承诺跨机字节一致**（PyInstaller 产物受 bootloader 构建、
+#     依赖版本、路径影响）。故下面 exe 那两行是**本机构建记录**，不是"可复现"承诺。
+#
+# 发布附件（用户在 Release 页下载并校验的就是这一行）：
+fc62a21eabf000d383c09e0e12351d74e2a27c4e107c2312234d68a34b4d09a3 *rcc-v0.1.0-win64.zip
+# 归档内两个 exe 的本机构建基线（**归档内路径形态**，解压后在解压根跑 sha256sum -c）：
+ccf69f132e1d6db45a3b2fe73f2b9342caaed299ffe6196bd4d78ef09d7f84be *rcc/rcc.exe
+f98ccc70d812ec9c2c3c4658e3fdc51bbd41c198eb2bde3bf3331177c9410be5 *rcc/rcc-gui.exe

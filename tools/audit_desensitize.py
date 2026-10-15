@@ -33,6 +33,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HARD = "HARD"
 REVIEW = "REVIEW"
 ADVISORY = "advisory"
+# 上游固有（产物扫描专用）：命中串在官方原件里同串存在 → 不阻断，但仍打印计数
+UPSTREAM = "UPSTREAM"
 
 # 行内放行标记：命中所在行含该标记即转"白名单放过"（**仍在输出里可见**）
 ALLOW_MARKER = "audit-allow"
@@ -156,8 +158,15 @@ def _is_exempt_email(text, noreply):
     return False
 
 
-def scan_text(text, rules, noreply, rel_path=""):
-    """扫描一段文本，返回 ``[(rel_path, line_no, rule_name, level, masked)]``。"""
+def scan_text(text, rules, noreply, rel_path="", adjudicate=None):
+    """扫描一段文本，返回 ``[(rel_path, line_no, rule_name, level, masked)]``。
+
+    ``adjudicate``：可选回调 ``(rule_name, raw_string) -> level|None``。返回级别时
+    覆盖原级别——用于**产物扫描的"官方原件同串比对"豁免裁决**（plan/05 §八）：
+    命中的串若在上游原件（官方 CPython / PySide6）里也存在，则属上游固有成分，
+    由 HARD 转 UPSTREAM（**仍打印、仍计数**，只是不再阻断）。回调用"实算的同串
+    存在性"作答，不是"把人写死的豁免清单贴上去"。
+    """
     hits = []
     for line_no, line in enumerate(text.splitlines(), start=1):
         if ALLOW_MARKER in line:
@@ -169,7 +178,12 @@ def scan_text(text, rules, noreply, rel_path=""):
                     continue
                 if _is_rule_whitelisted(rel_path, name):
                     continue
-                hits.append((rel_path, line_no, name, level, _mask(found)))
+                effective = level
+                if adjudicate is not None:
+                    override = adjudicate(name, found)
+                    if override is not None:
+                        effective = override
+                hits.append((rel_path, line_no, name, effective, _mask(found)))
     return hits
 
 
@@ -275,24 +289,92 @@ def scan_messages(rules, noreply):
     return scan_text(log, rules, noreply, "<commit-messages>")
 
 
-def scan_dist(rules, noreply):
-    """模式四：构建产物本体扫描（dist/ 存在时才跑）。"""
-    dist = os.path.join(REPO_ROOT, "dist")
+def _upstream_roots(dist_path):
+    """推断该 dist 的上游原件目录（官方 CPython 安装 + 其 site-packages）。
+
+    **从运行本扫描器的解释器实算**，不写死路径（plan/05 §八：token 运行时实算）。
+    产物由"装着依赖的那条解释器通道"打出（本机 = 打 PyInstaller 的 3.12），其
+    上游原件就是该解释器自身目录。
+    """
+    roots = []
+    base = os.path.dirname(os.path.dirname(os.path.abspath(sys.executable)))
+    if os.path.isdir(base):
+        roots.append(base)
+    try:
+        import site
+
+        for path in site.getsitepackages():
+            if os.path.isdir(path):
+                roots.append(path)
+    except Exception:  # noqa: BLE001 - 无 site 信息时不阻断
+        pass
+    return roots
+
+
+_UPSTREAM_BLOB_CACHE = {}
+
+
+def _upstream_contains(raw_string, roots):
+    """该串是否在上游原件中出现（"官方原件同串比对"）。"""
+    key = tuple(roots)
+    if key not in _UPSTREAM_BLOB_CACHE:
+        blob = bytearray()
+        for root in roots:
+            for dirpath, dirnames, filenames in os.walk(root):
+                dirnames[:] = sorted(dirnames)
+                for filename in sorted(filenames):
+                    if filename.endswith((".py", ".pyc", ".txt", ".dll", ".pyd", ".pdb")):
+                        try:
+                            with open(os.path.join(dirpath, filename), "rb") as fh:
+                                blob += fh.read()
+                        except OSError:
+                            pass
+        _UPSTREAM_BLOB_CACHE[key] = bytes(blob)
+    return raw_string.encode("utf-8", "replace") in _UPSTREAM_BLOB_CACHE[key]
+
+
+def scan_dist(rules, noreply, dist_path=None):
+    """模式四：构建产物本体扫描（**字节读法**，含二进制）。
+
+    默认扫仓库内 ``dist/``；发布期产物按纪律落在**仓库树外**（``--distpath`` 指向
+    ``$TEMP``，见 plan/05 §五），故支持 ``--dist-path`` 显式指向它。
+
+    **不做二进制跳过**：这里扫的就是 exe/DLL/pyd 这类二进制——Python 二进制里
+    常有可读明文字符串（路径、编译期信息），跳过等于不扫。命中串的豁免裁决口径
+    见 plan/05 §八（"官方原件同串比对"）。
+    """
+    dist = dist_path or os.path.join(REPO_ROOT, "dist")
     if not os.path.isdir(dist):
         return []
+
+    # 产物面专用裁决：命中串若在上游原件（官方 CPython / PySide6）中同串存在，
+    # 属上游固有成分 → 转 UPSTREAM（仍打印计数，但不阻断）。**这是实算，不是
+    # 手写豁免清单**：换台机器/换依赖版本，判定随实况变。
+    roots = _upstream_roots(dist)
+
+    def adjudicate(rule_name, raw_string):
+        if rule_name in ("email", "idcard", "phone", "api_key") \
+                and _upstream_contains(raw_string, roots):
+            return UPSTREAM
+        return None
+
     hits = []
     for dirpath, dirnames, filenames in os.walk(dist):
         dirnames[:] = sorted(dirnames)
         for filename in sorted(filenames):
             path = os.path.join(dirpath, filename)
-            rel = os.path.relpath(path, REPO_ROOT).replace(os.sep, "/")
+            try:
+                rel = os.path.relpath(path, REPO_ROOT).replace(os.sep, "/")
+            except ValueError:  # 跨盘符（产物在 C:，仓库在 D:）
+                rel = os.path.relpath(path, dist).replace(os.sep, "/")
+                rel = "<dist>/" + rel
             try:
                 with open(path, "rb") as fh:
                     raw = fh.read()
             except OSError:
                 continue
             text = raw.decode("utf-8", errors="replace")
-            hits.extend(scan_text(text, rules, noreply, rel))
+            hits.extend(scan_text(text, rules, noreply, rel, adjudicate=adjudicate))
     return hits
 
 
@@ -364,6 +446,8 @@ def main(argv=None):
     parser.add_argument("--selftest", action="store_true", help="阳性/阴性对照")
     parser.add_argument("--mode", choices=("tracked", "history", "messages", "dist", "all"),
                         default="all", help="扫描模式")
+    parser.add_argument("--dist-path",
+                        help="构建产物目录（缺省仓库内 dist/）；发布期产物在树外，故须显式传")
     args = parser.parse_args(argv)
 
     if args.selftest:
@@ -391,13 +475,21 @@ def main(argv=None):
         if name == "history" and not _history_channel_probe():
             print("AUDIT_FAIL: 历史扫描通道探活失败（可能空扫）")
             return 1
-        hits.extend(func(rules, noreply))
+        if name == "dist":
+            if args.dist_path and not os.path.isdir(args.dist_path):
+                print("AUDIT_FAIL: --dist-path 指向的目录不存在: %s" % args.dist_path)
+                return 2
+            hits.extend(func(rules, noreply, args.dist_path))
+        else:
+            hits.extend(func(rules, noreply))
 
     hard = [hit for hit in hits if hit[3] == HARD]
     review = [hit for hit in hits if hit[3] == REVIEW]
     advisory = [hit for hit in hits if hit[3] == ADVISORY]
+    upstream = [hit for hit in hits if hit[3] == UPSTREAM]
 
-    for label, group in (("HARD", hard), ("REVIEW", review), ("advisory", advisory)):
+    for label, group in (("HARD", hard), ("REVIEW", review),
+                         ("UPSTREAM", upstream), ("advisory", advisory)):
         for hit in group:
             print("  %s:%s [%s/%s] %s" % (hit[0], hit[1], hit[2], label, hit[4]))
 
@@ -406,8 +498,8 @@ def main(argv=None):
         return 1
     if review:
         print("DESENSITIZE_AUDIT_REVIEW: 复核项 %d 处（需人工豁免留档）" % len(review))
-    print("DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW %d / advisory %d"
-          % (len(review), len(advisory)))
+    print("DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW %d / UPSTREAM %d / advisory %d"
+          % (len(review), len(upstream), len(advisory)))
     return 0
 
 

@@ -1,6 +1,8 @@
 # 菜谱/食堂采购成本核算器
 
-> **状态**：🚧 v0.1.0（M0 骨架 → M1 数据 → M2 导入 → M3 引擎 → M4 基准 → **M5 交付已完成**：免安装 exe 本地可用、随包数据可达且可自证；M6 发布待开工）
+[![CI](https://github.com/yuluo554/10-15-recipe-cost-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/yuluo554/10-15-recipe-cost-calculator/actions/workflows/ci.yml)
+
+> **状态**：✅ **v0.1.0 已发布** — 见 [Releases](https://github.com/yuluo554/10-15-recipe-cost-calculator/releases/tag/v0.1.0)（免安装 Windows 附件：下载 → 解压 → 跑自检，无需 Python）。M0 骨架 → M1 数据 → M2 导入 → M3 引擎 → M4 基准 → M5 交付 → **M6 发布**：确定性 release zip + sha256 留档 + 公开仓库与 CI。
 
 把"进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警"做成**确定性规则引擎**：结论 100% 可复现、纯本地运行、零账号零上传零遥测，内置公开批发价快照做基准真值。
 
@@ -216,18 +218,22 @@ tests/       unit / guards / integration / benchmark / gui（317 项，双解释
 
 ## 下载即用
 
-⬜ **待 M6 发布后回填**：Release 附件为 ASCII 名 zip（`rcc-vX.Y.Z-win64.zip`），下载后解压到任意目录即可运行，无需安装 Python。
+到 [Releases](https://github.com/yuluo554/10-15-recipe-cost-calculator/releases/tag/v0.1.0) 下载附件 **`rcc-v0.1.0-win64.zip`**（约 113 MB，Windows x64，**无需安装 Python**），解压到任意目录即可运行。
 
 ```bash
-# 校验下载件（sha256 与发布留档逐位比对；附件名与校验值 M6 发布时回填）
-# sha256sum rcc-vX.Y.Z-win64.zip
+# 1) 校验下载件（sha256 与 plan/DIST-sha256-M6.txt 逐位一致）
+sha256sum rcc-v0.1.0-win64.zip
+# 应为 fc62a21eabf000d383c09e0e12351d74e2a27c4e107c2312234d68a34b4d09a3
 
-# 解压后先自检：确认随包数据落在解压目录内
+# 2) 解压后先自检：确认随包数据落在解压目录内（frozen_data_inside_dist=true）
 rcc/rcc.exe selftest
 rcc/rcc-gui.exe --selftest selftest.json
+
+# 3) 跑内置基准（离线，总判应为「达标」，退出码 0）
+rcc/rcc.exe bench
 ```
 
-> **诚实口径**：Release 尚未创建（M6 的 DoD）。上表的附件名与 sha256 留空待回填，不预填未实测的值。
+**退出码**：`selftest` = 0（全过）、`bench` = 0（达标）。若 `selftest` 报 `frozen_data_inside_dist=false`，说明解压不完整（`_internal/` 没跟着解出来），请解压整份 zip 而不是把 exe 单独拷出来。
 
 ## 数据来源声明
 

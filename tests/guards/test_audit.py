@@ -166,3 +166,50 @@ def test_audit_output_is_masked(repo_root):
     domain = "some" + "company" + "." + "cn"
     masked = audit_desensitize._mask(local + "@" + domain)
     assert "realuser" not in masked and "***" in masked, "掩码未生效: %s" % masked
+
+
+# --------------------------------------------- 产物面"官方原件同串比对"裁决
+
+def test_upstream_adjudication_exempts_only_genuine_upstream(repo_root):
+    """产物扫描的上游裁决**只放过真在上游出现过的串**。
+
+    裁决是**实算**（比对官方原件字节），不是手写豁免清单：给一个必然不在上游的
+    合成串 → 不得被转 UPSTREAM；给一个必然在上游的串（本解释器自身文件名）
+    → 必须被转 UPSTREAM。两侧都断言，防"裁决恒放过"与"裁决恒不放过"。
+    """
+    sys.path.insert(0, os.path.join(repo_root, "tools"))
+    import audit_desensitize
+
+    roots = audit_desensitize._upstream_roots("")
+    assert roots, "未推断出任何上游原件目录（裁决无从谈起）"
+
+    fake = "probe" + "user" + "@" + "probe" + "host" + ".net"
+    assert not audit_desensitize._upstream_contains(fake, roots), \
+        "合成串被判为在上游存在——裁决口径失效"
+
+    marker = os.path.basename(sys.executable)
+    assert audit_desensitize._upstream_contains(marker, roots), \
+        "解释器自身文件名未在上游找到——上游索引构建失效"
+
+
+def test_dist_scan_upstream_hits_are_visible_not_swallowed(repo_root):
+    """被裁决为上游固有的命中**仍要打印计数**，不得静默吞掉。
+
+    plan/05 §八：放过项也要可见——"放过的项不打印"等于把豁免变成黑洞。
+    """
+    sys.path.insert(0, os.path.join(repo_root, "tools"))
+    import audit_desensitize
+
+    rules = [("probe", re.compile("菜谱"), audit_desensitize.HARD)]
+    seen = {}
+
+    def adjudicate(rule_name, raw_string):
+        seen[raw_string] = True
+        return audit_desensitize.UPSTREAM
+
+    hits = audit_desensitize.scan_text("菜谱\n", rules, "@users.noreply.github.com",
+                                       "<probe>", adjudicate=adjudicate)
+    assert hits and all(hit[3] == audit_desensitize.UPSTREAM for hit in hits), \
+        "裁决未生效（命中仍为 HARD 或未记录）"
+    assert seen, "裁决回调未被调用（机制失效）"
+    assert hits[0][4], "UPSTREAM 命中未携带掩码化展示串（会被静默吞掉）"
