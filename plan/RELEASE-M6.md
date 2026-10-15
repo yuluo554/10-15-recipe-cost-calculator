@@ -157,7 +157,7 @@
 |---|---|---|
 | ① 全历史脱敏三扫 0 硬门 | tracked/history/messages 均 HARD 0 | ✅ |
 | ② 历史坏 blob 修净 | `git fsck` 无悬空敏感对象 | ✅ |
-| ③ 失败 run 已删 | `gh run list` 无含敏感回显的失败 run | ⬜ 见 §九（首推后核查） |
+| ③ 失败 run 已删 | `gh run list` 无含敏感回显的失败 run | ✅ **无失败 run**（三次 push 事件全部 success）；且**逐 run 核查过日志**：无邮箱形态、无本机用户名、无个人路径签名 → **无需删除任何 run** |
 
 **顺序**：先清后切是单向门。本仓库**建仓即 public**（`gh repo create --public`），故"三清"在建仓推送**之前**完成——即 §七 与上表①② 的结果都是**推送前**取得的。
 
@@ -167,13 +167,11 @@
 
 | 步 | 内容 | 结果 |
 |---|---|---|
-| 1 | 真下载 release 附件 | ⬜ 待发布后执行 |
-| 2 | 下载件 sha256 与留档逐位一致 | ⬜ 同上 |
-| 3 | 解压中立目录跑冻结态 `--selftest` | ⬜ 同上 |
+| 1 | **真下载** release 附件（`gh release download`） | ✅ 下载件 118,507,589 B（与上传件同字节数） |
+| 2 | 下载件 sha256 与留档**逐位一致** | ✅ `sha256sum -c` 对 `plan/DIST-sha256-M6.txt` 输出 `rcc-v0.1.0-win64.zip: OK`（rc 0、无告警） |
+| 3 | 解压**中立目录**跑冻结态自检 | ✅ 解压到中立目录后 `rcc.exe selftest` → `frozen=true` + **`frozen_data_inside_dist=true`** + `ok=true`（参数条目 12）+ **exit 0**；`bench` → **exit 0** |
 
-**本地等价预演已完成**（未走网络下载这一步）：同一份 zip 解压到中立目录 → `rcc.exe selftest` exit 0、随包数据 15/15 与仓库一致。三步齐了才算"发布物本体已验"，故本节按 plan/05 §十 留 ⬜。
-
-**tag 与 Release**：见 §十。
+**三步齐了 → "发布物本体已验"成立。** 这一步与 §四 的区别：§四 验的是**我自己机器上的 dist**，本节验的是**从 GitHub 真下载回来的那个文件**——中间隔着一次上传与一次下载，只有本节能证明"附件没在上传/下载环节坏掉或被替换"。
 
 ---
 
@@ -181,14 +179,29 @@
 
 | # | 项 | 状态 |
 |---|---|---|
-| 1 | `git tag -a v0.1.0`（打在含完整收尾回写文档的提交上）+ push tag | ⬜ 待执行 |
-| 2 | `gh release create v0.1.0`（`--notes-file` + `--verify-tag`）附产物 + `gh release view --json assets,tagName,isDraft` 核验 | ⬜ 待执行 |
+| 1 | `git tag -a v0.1.0`（打在含完整收尾回写文档的提交上）+ push tag | ✅ 注解 tag 已创建并 push；`--verify-tag` 通过（tag 先于 Release 存在） |
+| 2 | `gh release create v0.1.0`（`--notes-file` + `--verify-tag`）附产物 + `gh release view --json assets,tagName,isDraft` 核验 | ✅ 核验结果：`isDraft=false`、`tagName=v0.1.0`、附件 `rcc-v0.1.0-win64.zip` 在列（size 118,507,589，state `uploaded`） |
 | 3 | `plan/RELEASE-M6.md`（本文件） | ✅ 已落盘 |
+
+### 发布期实测：tag push 是否触发 CI
+
+plan/05 §七 要求"**以当轮实测为准留档**（两种行为都出现过）"。本轮实测：
+
+| push 事件 | ref | `head_sha` | conclusion |
+|---|---|---|---|
+| 1 | `refs/heads/main` | `65dee9ed` | success |
+| 2 | **`refs/tags/v0.1.0`** | `94d192ad` | **success（tag push 触发了 CI）** |
+| 3 | `refs/heads/main` | `94d192ad` | success |
+
+**结论：本仓库的 `on: push`（不带 branches/tags 限定）对 tag push 与 branch push 都触发。** 故 push tag 与 push main 各产生一轮 run（同一 sha 出现两轮，是因为两次 push 分别触发，**不是**失败重跑）。
+
+> **tag 移动后的复验纪律**（plan/05 §十）：本轮**未移动**已发布 Release 的 tag——tag 一次性打在含完整回写的提交上。若将来必须移动，务必复验 `isDraft`：GitHub 会把移动过 tag 的 Release 打回 draft。
 
 ---
 
 ## 十一、发布期发现与处置
 
-1. **`rcc bench` 控制台通路挂**（§六）——干净环境验证抓出，已修 + 加门；
+1. **`rcc bench` 控制台通路挂**（§六）——干净环境验证抓出，已修 + 加门 + CI 补冒烟步骤（K53）；
 2. **`sha256sum -c` 对留档里的空行报 "improperly formatted"**：GNU coreutils 对 checksum 文件中的**空行**（后接下一行）会告警。留档因此去掉空行——**刷屏的校验命令会让读者不再看它的输出**，与"误报会让门禁失效"同一条纪律；
-3. **`--dist-path` 的引入**：M5 纪律把构建产物放在**仓库树外**，而审计器的 dist 模式原本只认仓库内 `dist/`——发布期产物按纪律在树外，故必须支持显式路径，否则"产物扫描"这一步会在正确的纪律下**扫了个空**。
+3. **`--dist-path` 的引入**：M5 纪律把构建产物放在**仓库树外**，而审计器的 dist 模式原本只认仓库内 `dist/`——发布期产物按纪律在树外，故必须支持显式路径，否则"产物扫描"这一步会在正确的纪律下**扫了个空**；
+4. **`gh release download` 必须在仓库目录内跑**：在仓库外的临时目录执行会报 `failed to run git: fatal: not a git repository`——它不是"下载失败"，而是**找不到仓库上下文**（退出码仍为 0，容易误判为成功）。**"命令没报错"与"文件真下下来了"要分开验**（用 `ls` 看字节数为证）。
