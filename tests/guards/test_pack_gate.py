@@ -326,3 +326,88 @@ def test_frozen_data_candidates_are_inside_dist_layout(tmp_path, monkeypatch, pa
     for candidate in packaging._frozen_data_candidates():
         assert packaging.frozen_data_is_inside_dist(exe_dir, candidate) is True, (
             "冻结态候选 %s 落在 exe 目录之外" % candidate)
+
+
+# ------------------------------------------------- 构建期依赖的钉法（plan/05 §二）
+
+def _pyproject_text(repo_root):
+    with open(os.path.join(repo_root, "pyproject.toml"), "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
+def _extras_block(text, extra):
+    """取出 ``[project.optional-dependencies]`` 下某个 extra 的列表正文。"""
+    marker = "[project.optional-dependencies]"
+    start = text.index(marker)
+    rest = text[start + len(marker):]
+    # 该 extra 的赋值形如 ``extra = [ ... ]``；取到匹配的右括号
+    key = "%s = [" % extra
+    key_at = rest.index(key)
+    body_start = key_at + len(key)
+    depth = 1
+    index = body_start
+    while index < len(rest) and depth:
+        if rest[index] == "[":
+            depth += 1
+        elif rest[index] == "]":
+            depth -= 1
+        index += 1
+    return rest[body_start:index - 1]
+
+
+def test_optional_dependency_blocks_are_parseable(repo_root):
+    """**机制前提**：三个 extra 都要能被取出正文（否则下面的断言是空扫）。"""
+    text = _pyproject_text(repo_root)
+    for extra in ("gui", "dev", "build"):
+        body = _extras_block(text, extra)
+        assert body.strip(), "%s extra 正文为空（解析失效）" % extra
+
+
+def test_build_extra_pins_setuptools_upper_bound(repo_root):
+    """``build`` extra 必须显式钉 ``setuptools`` 上限（plan/05 §二）。
+
+    理由：PyInstaller 5.x import ``pkg_resources``，而 setuptools 81 起移除它——
+    不钉上限时"用最新 setuptools 装 build extra"会得到一个**装得上但跑不起来**的
+    构建环境，而报错指向 PyInstaller 内部，与真因（setuptools 版本）隔了好几层。
+    """
+    body = _extras_block(_pyproject_text(repo_root), "build")
+    assert "setuptools" in body, "build extra 未钉 setuptools（上限保护缺失）"
+    assert "setuptools<" in body.replace(" ", ""), (
+        "build extra 的 setuptools 未钉上限（实际: %r）" % body.strip())
+
+
+def test_build_extra_pins_pyinstaller_lower_bound(repo_root):
+    """``build`` extra 必须钉 ``PyInstaller>=6``（打 GUI 时 5.x 确定性崩）。"""
+    body = _extras_block(_pyproject_text(repo_root), "build")
+    compact = body.replace(" ", "")
+    assert "PyInstaller>=6" in compact, (
+        "build extra 未钉 PyInstaller>=6（打 PySide6 GUI 会崩，实际: %r）" % body.strip())
+
+
+def test_setuptools_pin_guard_is_not_vacuous():
+    """**机制探活**：喂一个没钉上限的 build extra → 判据必须报红。"""
+    fake = ('[project.optional-dependencies]\n'
+            'build = [\n'
+            '    "PyInstaller>=6.0",\n'
+            '    "setuptools",\n'
+            ']\n')
+    body = _extras_block(fake, "build")
+    assert "setuptools<" not in body.replace(" ", ""), (
+        "探活失效：不钉上限的 build extra 竟被判为已钉")
+
+
+def test_gui_extra_requires_pyside6(repo_root):
+    """``gui`` extra 必须声明 PySide6（缺它时 `rcc gui` 走 exit 3 的提示才成立）。"""
+    body = _extras_block(_pyproject_text(repo_root), "gui")
+    assert "PySide6" in body, "gui extra 未声明 PySide6"
+
+
+def test_dev_extra_covers_test_dependencies(repo_root):
+    """**测试面 = 安装面**（plan/04 §五）：测试套件真 import 的库都要在 dev extra。
+
+    当前测试面真 import 的第三方库只有 ``pytest`` 与 ``pyyaml``（CI 门用）。
+    断言这两者在场——否则干净 venv 里会**硬失败**（不是声明式跳过）。
+    """
+    body = _extras_block(_pyproject_text(repo_root), "dev")
+    for package in ("pytest", "pyyaml"):
+        assert package in body, "dev extra 缺 %s（干净环境会硬失败）" % package

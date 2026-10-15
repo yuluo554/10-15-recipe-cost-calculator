@@ -14,20 +14,20 @@
 | **免安装 exe 本地可用（DoD）** | ✅ | 冻结态实测（**中立目录**，非仓库树）：`selftest` exit 0、`bench` 总判达标 exit 0、`run`/`check`/带预警 `run`/`--report` 全可达随包数据。带预警实跑 `预警：141 项超阈值`，与源码态一致 |
 | **随包数据可达 + 自检断言（DoD 核心）** | ✅ | 中立目录实测 `rcc.exe selftest` → `frozen=true`、**`frozen_data_inside_dist=true`**（`exe=…\rcc`、`data=…\rcc\_internal\data`）；窗口版 `rcc-gui.exe --selftest out.json` → 同样 `true` + 页签 4 个 + exit 0 |
 | **冻结态负向对照**（比"能跑"更强） | ✅ | 删掉 `_internal/data` 后 `selftest` → `data_dir` 与 `params_loadable` 双双 `ok=false`、总判 `ok=false`、**exit 1**。**不静默回落开发机仓库**（`find_data_dir` 冻结分支找不到内嵌数据时返回候选路径交自检判定） |
-| **G-PACK 门（plan/04 §四）** | ✅ | 新增 `tests/guards/test_pack_gate.py`（**14 项**）：spec 无手写数据路径 / 无禁区字面（**取 `FORBIDDEN_IN_DIST`，不复制第二份**）+ AST 断言 `DATAS` 由 `build_datas()` 产生 + **核心断言"包内路径 == 仓库内相对路径"** + 白名单对账 + 冻结判定本身的探活 |
+| **G-PACK 门（plan/04 §四）** | ✅ | 新增 `tests/guards/test_pack_gate.py`（**20 项**）：spec 无手写数据路径 / 无禁区字面（**取 `FORBIDDEN_IN_DIST`，不复制第二份**）+ AST 断言 `DATAS` 由 `build_datas()` 产生 + **核心断言"包内路径 == 仓库内相对路径"** + 白名单对账 + 冻结判定本身的探活 |
 | **修复实装期抓出的真实缺陷（M5 头号发现）** | ✅ | `build_datas()` 原对**目录**条目也用 `dirname(rel)` 作目标目录，而 PyInstaller 把目录源的**内容**复制进目标目录 → `data/snapshots/x.json` 被**拍平**成 `data/x.json`，三份快照+样例+真值库全挤进 `data/`。**构建不报任何错、源码态全绿、只有换机器才炸**。处置 = 目录取条目自身、文件取父目录；并把它写进 G-PACK 核心断言 |
 | **冻结态数据定位收敛** | ✅ | `benchmark/runner.py::TRUTH_DIR` 与 `cases.snapshot_path()` 原各按 `__file__` 上溯拼 `data/...`（源码态对、冻结态落空）。现分别用 `find_data_dir()/truth` 与 `dirname(find_data_dir())/data/snapshots/…`。`cases.REPO_ROOT` 因此成死代码，已删 |
 | **GUI 交互测试层（plan/04 §一，M5 新建）** | ✅ | 新增 `tests/gui/`：`conftest.py`（offscreen **在模块层**设，Qt 只在建 `QApplication` 时读它）+ `test_main_window.py`（窗口装配 / 关于页版本与免责 / `build_app` 返回码 / `--selftest` 通路 / **核心自检不依赖重件**）+ `test_layering_behavior.py`（**不 import 重件、恒跑**：`import rcc.gui` 不得把 PySide6 拉进 `sys.modules`，含机制探活）。**10 项双解释器零 skip** |
 | **分层门禁归属（别搬进可 skip 的目录）** | ✅ | AST 三条仍在 `tests/guards/test_gates.py`（恒跑）；行为面在 `tests/gui/test_layering_behavior.py`（也不 import 重件、恒跑）。只有真需要 Qt 的窗口冒烟才模块级跳过 |
-| **七条变异验证（全红）** | ✅ | 脚本在**仓库树外副本**上做，工作树无残留：①spec 手写数据路径→红 ②`DATAS` 改字面列举→红 ③`build_datas()` 目录条目退回 `dirname`→红 ④新增未登记数据目录→红 ⑤`frozen_data_is_inside_dist` 恒 True→红 ⑥spec 写**带中文**的禁区路径→红（**第一版判据按 ASCII 筛，把它静默滤掉了——变异验证当场抓出并修掉**）⑦`--selftest` 页签数恒 0→`tests/gui/` 红 |
+| **九条变异验证（全红）** | ✅ | 脚本在**仓库树外副本**上做，工作树无残留：①spec 手写数据路径→红 ②`DATAS` 改字面列举→红 ③`build_datas()` 目录条目退回 `dirname`→红 ④新增未登记数据目录→红 ⑤`frozen_data_is_inside_dist` 恒 True→红 ⑥spec 写**带中文**的禁区路径→红（**第一版判据按 ASCII 筛，把它静默滤掉了——变异验证当场抓出并修掉**）⑦`--selftest` 页签数恒 0→`tests/gui/` 红 ⑧去掉 `setuptools<81` 上界→红 ⑨去掉 `PyInstaller>=6` 下界→红 |
 | **用户手册（README）** | ✅ | 新增：打包成免安装 exe 一节（含"为什么要断言数据落在 exe 内"与**中立目录**验收纪律）+ 下载即用一节（附件名/sha256 **留空标 ⬜ 待 M6 回填**，不预填）+ 已知环境问题补窗口版无控制台一条 + 特性补"随包数据可自证"。状态行更新到 M5 |
 | **README 退出码全部实测** | ✅ | 源码态复跑：`run`/`alert run`/`check` = **1**、`bench` = **0**、`selftest` = **0**、`bench --only nope` = **2**、`run --purchases nope.csv` = **2**、`gui`（打桩缺 PySide6）= **3**。冻结态 exe 复跑 `run`/`check`/`alert run` 亦 = 1（与源码态一致） |
 | **G-README 门复跑** | ✅ | `tests/guards/test_repo_gates.py` 18 项全绿（README 引用的输入路径真存在、由生成器产出、按退出码真跑通） |
 | **CI 配置修正（两处真漂移）** | ✅ | ①补 `gen_truth.py --check`（共同验收门是三个生成器，漏掉它 = 真值库无人守）②`bench` 的 `\|\| test $? -eq 1` 改为直接断言 0（M4 起五套件达标）。`tests/guards/test_repo_gates.py` 的 CI 门仍绿 |
-| **测试全绿（双解释器）** | ✅ | `py -3.12` **311 passed**；`py -3.8` **311 passed**（收集数 311；M4 为 287，本期 +14 G-PACK +10 GUI） |
+| **测试全绿（双解释器）** | ✅ | `py -3.12` **317 passed**；`py -3.8` **317 passed**（收集数 317；M4 为 287，本期 +20 G-PACK +10 GUI） |
 | **全部既有门复跑** | ✅ | 零字面量 `LITERAL_GATE_OK: 24 个入口，0 命中` + `--selftest` OK；脱敏 `DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW 0 / advisory 63` + `--selftest` OK；三生成器 `--check` 全 OK；快照 `--check` / `--selftest` OK；`bench` 达标 exit 0 |
-| **dev-only 环境下的门（模拟 CI）** | ✅ | 用 `sys.meta_path` 拦掉 `PyInstaller`/`PySide6` 后跑 `tests/guards` + `tests/gui`：**109 passed, 1 skipped**（唯一 skip 是窗口冒烟，声明式且合法）。G-PACK **不依赖 PyInstaller**（自己复刻其目录语义），故在只装 `.[dev]` 的 CI 上照跑 |
-| CI 真实状态 | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 311 + 门禁 selftest + 三生成器 --check + 快照 --check + 七条变异验证 + 冻结态 exe 实跑），CI 配置已入仓待首推验证** |
+| **dev-only 环境下的门（模拟 CI）** | ✅ | 用 `sys.meta_path` 拦掉 `PyInstaller`/`PySide6` 后跑 `tests/guards` + `tests/gui`：**115 passed, 1 skipped**（唯一 skip 是窗口冒烟，声明式且合法）。G-PACK **不依赖 PyInstaller**（自己复刻其目录语义），故在只装 `.[dev]` 的 CI 上照跑 |
+| CI 真实状态 | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 317 + 门禁 selftest + 三生成器 --check + 快照 --check + 九条变异验证 + 冻结态 exe 实跑），CI 配置已入仓待首推验证** |
 
 ### M5 期实测发现的缺陷与陷阱（都已处置，记此防复现）
 
@@ -171,8 +171,8 @@
 
 ```bash
 # 双解释器全量测试（收尾必跑）
-PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest -q    # 311 passed
-PYTHONDONTWRITEBYTECODE=1 py -3.8  -X utf8 -m pytest -q    # 311 passed
+PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest -q    # 317 passed
+PYTHONDONTWRITEBYTECODE=1 py -3.8  -X utf8 -m pytest -q    # 317 passed
 
 # 脱敏审计（新增文档/提交前必跑；**单独跑，别接管道**）
 py -3.12 -X utf8 tools/audit_desensitize.py --selftest     # AUDIT_SELFTEST_OK
@@ -191,7 +191,7 @@ py -3.12 -X utf8 tools/fetch_snapshots.py --refetch-check   # 联网重抓比对
 # 零字面量门禁 + G-PACK + GUI 分层门（新增源码/打包件后必跑）
 py -3.12 -X utf8 tools/check_literals.py --selftest
 py -3.12 -X utf8 tools/check_literals.py          # 24 个入口，0 命中
-PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest tests/guards/test_pack_gate.py -q   # 14 passed
+PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest tests/guards/test_pack_gate.py -q   # 20 passed
 PYTHONDONTWRITEBYTECODE=1 py -3.12 -X utf8 -m pytest tests/gui -q                        # 10 passed
 
 # 基准（M4：五套件达标 → exit 0）
@@ -217,9 +217,9 @@ cd "$(mktemp -d)"
 # 负向对照：删 _internal/data 后再跑 selftest → ok=false + exit 1
 
 # 收集数对账
-py -3.12 -X utf8 -m pytest --collect-only -q | tail -1    # 311 tests collected
+py -3.12 -X utf8 -m pytest --collect-only -q | tail -1    # 317 tests collected
 
-# 变异验证（M5 七条已实测全红；改打包纪律后可复跑）
+# 变异验证（M5 九条已实测全红；改打包纪律后可复跑）
 # ① spec 手写 "data/..." → test_spec_has_no_handwritten_data_path 红
 # ② DATAS 改字面列举 → test_spec_datas_come_from_build_datas 红
 # ③ build_datas() 目录条目退回 dirname → test_bundled_layout_matches_repo_layout 红
@@ -227,6 +227,8 @@ py -3.12 -X utf8 -m pytest --collect-only -q | tail -1    # 311 tests collected
 # ⑤ frozen_data_is_inside_dist 恒 True → test_frozen_inside_dist_rejects_data_outside_exe 红
 # ⑥ spec 写带中文的禁区路径 → test_spec_has_no_forbidden_literals 红
 # ⑦ --selftest 页签数恒 0 → tests/gui/test_main_window.py 红
+# ⑧ 去掉 setuptools<81 上界 → test_build_extra_pins_setuptools_upper_bound 红
+# ⑨ 去掉 PyInstaller>=6 下界 → test_build_extra_pins_pyinstaller_lower_bound 红
 
 # 退出码核验（**别接管道**）
 py -3.12 -X utf8 -m rcc.cli bench > /dev/null 2>&1; echo $?    # 0

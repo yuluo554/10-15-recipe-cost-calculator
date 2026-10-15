@@ -202,7 +202,7 @@ src/rcc/     唯一包（cli / model / rules / io / engine / alert / report / gu
 benchmark/   基准套件（runner + cases 对账语义单一实现源与活体观测器）
 tools/       生成器与门禁（gen_params / gen_samples / gen_truth / check_literals / audit_desensitize / detrng / fetch_snapshots）
              打包（rcc.spec 构建规格 + launcher_cli / launcher_gui 冻结态入口）
-tests/       unit / guards / integration / benchmark / gui（311 项，双解释器 3.8 与 3.12 全绿）
+tests/       unit / guards / integration / benchmark / gui（317 项，双解释器 3.8 与 3.12 全绿）
 ```
 
 ## 限制
