@@ -1,25 +1,27 @@
 # plan/00-README 总览
 
-仓库 `10-15-recipe-cost-calculator`（菜谱/食堂采购成本核算器）出题与计划总览。v6（2026-10-15，M5 交付落地）。
+仓库 `10-15-recipe-cost-calculator`（菜谱/食堂采购成本核算器）出题与计划总览。v7（2026-10-15，M6 发布落地）。
 
 ## 一、文档索引表
 
 | 文档 | 内容 | 状态 |
 |---|---|---|
-| plan/00-README总览.md | 索引/决策记录/台账/里程碑 | ✅ v5（M4 回写） |
+| plan/00-README总览.md | 索引/决策记录/台账/里程碑 | ✅ v7（M6 回写） |
 | plan/01-题目文档.md | 十段式题目定稿 | ✅ v2（M4 回写：模块⑤ 基准的确定性纪律与覆盖度双登记） |
 | plan/02-算法与口径说明.md | 换算公式 F1–F6 / 参数体系与来源标记 / **口径单一定义点** | ✅ v3（M4 回写：共同验收门统一 + 真值库只存输入与期望） |
 | plan/03-基准套件设计.md | 五套件（样本驱动 B1–B3 + 规则驱动 B4/B5）/ 真值语义 / 覆盖度双登记 / 探活 | ✅ v2（M4 回写：实测数值回填 + 覆盖度双登记 + 探活落点 + 时长/误报率纪律） |
-| plan/04-测试与验收.md | 测试分层 / 退出码语义 / 守门清单含变异验证 / 干净环境验证 | ✅ v4（M4 回写：新增 G-TRUTH-FROZEN 与 G-BENCH-LIVE 门，M4 出口门实测） |
-| plan/05-发布与交付.md | 依赖分层 / 打包白名单 / 冻结态自检 / CI 与 EOL 门 / 脱敏四步 / 三件套 | ✅ v3（M5 回写：spec 落地 + 双 exe onedir + 冻结态双通路验收 + G-PACK） |
-| plan/06-架构与技术选型.md | 选型 / 目录布局 / 分层与单向依赖 / 口径单一定义点 / 决策记录 | ✅ v4（M5 回写：决策记录补打包四条 + 启动器形态） |
+| plan/04-测试与验收.md | 测试分层 / 退出码语义 / 守门清单含变异验证 / 干净环境验证 | ✅ v5（M6 回写：G-RELEASE 门 + 干净环境实测值与归因 + 安装面门） |
+| plan/05-发布与交付.md | 依赖分层 / 打包白名单 / 冻结态自检 / CI 与 EOL 门 / 脱敏四步 / 三件套 | ✅ v4（M6 回写：release zip 确定性实测 + 产物 UPSTREAM 裁决 + 三件套回填） |
+| plan/06-架构与技术选型.md | 选型 / 目录布局 / 分层与单向依赖 / 口径单一定义点 / 决策记录 | ✅ v5（M6 回写：决策记录补安装面缺陷一条） |
 | plan/HANDOFF-M1.md | 跨会话交接快照（M1 续接用） | ✅ M0 收尾落盘 |
 | plan/HANDOFF-M2.md | 跨会话交接快照（M2 续接用） | ✅ M1 收尾落盘 |
 | plan/HANDOFF-M3.md | 跨会话交接快照（M3 续接用） | ✅ M2 收尾落盘 |
-| plan/HANDOFF-M4.md | 跨会话交接快照（M4 续接用） | ✅ M3 收尾落盘 |
-| plan/HANDOFF-M5.md | 跨会话交接快照（M5 续接用） | ✅ M4 收尾落盘 |
-| plan/HANDOFF-M6.md | 跨会话交接快照（M6 续接用） | ✅ M5 收尾落盘 |
-| plan/RELEASE-M6.md | 发布留档（三件套之一） | ⬜ M6 时建 |
+| plan/HANDOFF-M4.md | 跨会话交接快照（M3 续接用） | ✅ M3 收尾落盘 |
+| plan/HANDOFF-M5.md | 跨会话交接快照（M4 续接用） | ✅ M4 收尾落盘 |
+| plan/HANDOFF-M6.md | 跨会话交接快照（M5 续接用） | ✅ M5 收尾落盘 |
+| plan/HANDOFF-M7.md | 收官快照（M6 后无后续里程碑，供"二期/维护"接续） | ✅ M6 收尾落盘 |
+| plan/RELEASE-M6.md | 发布留档（三件套之一） | ✅ M6 落盘（只写实测到的，未跑的项留 ⬜） |
+| plan/DIST-sha256-M6.txt | 发布产物 sha256 留档（哈希行由 sha256sum 重定向生成） | ✅ M6 落盘 |
 | data/README.md | 依据查证/可获取性/合成数据纪律 | ✅ v2（M1 回写：新增 §一之三 快照留档与接口陷阱） |
 | data/snapshots/README.md | 快照台账（人读，与 ledger.json 同源渲染） | ✅ 生成器产物（禁手改） |
 
@@ -87,6 +89,18 @@
 | 2026-10-15 | **窗口版的页签数在启动器里观测，不进 `rcc.selftest`** | `--selftest` 的核心自检属**核心层**，若让它 import GUI 观测页签，就等于把 PySide6 拖进 CLI 的导入图——与"重件只在函数体内 import"的分层纪律相悖，`rcc selftest` 会在没装 gui extra 的机器上挂。处置 = 核心自检零重件（恒跑），页签装配的观测落在 `launcher_gui.run_selftest()` |
 | 2026-10-15 | **G-PACK 门落 `tests/guards/test_pack_gate.py`，判据是"布局可达"而非"字面干净"** | spec 静态扫（无手写数据路径 / 无禁区字面）+ AST 断言 `DATAS` 由 `build_datas()` 产生 + **行为断言**：白名单产物经 PyInstaller 语义展开后，包内路径必须等于仓库内相对路径；外加构建前白名单对账与冻结态判定本身的探活。**"spec 里没有某字符串"只证明写法合规，证明不了打出来的包能取到数据** |
 
+### M6 期（发布：公开仓库 + 确定性产物 + 三件套）
+
+| 日期 | 决策 | 结论与理由 |
+|---|---|---|
+| 2026-10-15 | **`benchmark/` 必须进安装面：`package-dir` 显式映射其根** | **M6 头号发现**。干净环境验证抓出：`benchmark/` 在仓库顶层，而 pyproject 只声明 `package-dir = {"" = "src"}` + `where = ["src"]` → 它**根本没被装上**。三种运行方式里**只有控制台脚本会挂**：源码态仓库根 `python -m rcc.cli bench` 能过（CWD 在 `sys.path` 上）、冻结态 `rcc.exe bench` 能过（PyInstaller hiddenimports 显式收了它）、**装好的 `rcc bench` → `ModuleNotFoundError: No module named 'benchmark'`**。既有 G-README 门恰好用 `python -m` 形式，**也看不见它**。处置 = `package-dir = {"" = "src", "benchmark" = "benchmark"}` + `where = ["src", "."]`。**陷阱**：`where = ["src", "."]` 看着对，但默认根 `src` 会把 `benchmark` 映射到不存在的 `src/benchmark`，安装当场失败（已实测）——故必须给精确键。新门判定落在 **package-dir 的解析结果**上，并配探活复现那个坏配置 |
+| 2026-10-15 | **release zip 的确定性只承诺"同 dist → 同 zip"** | `tools/make_release.py`：`ZIP_STORED` + 条目**按路径显式 sort**（`os.walk` 顺序跨调用不稳定，不排序则两次打包字节不同——**而两次都"成功"**）+ 全条目固定 `date_time=(1980,1,1,0,0,0)` + `create_system=0`。**exe 构建本身不承诺跨机字节一致**（PyInstaller 产物受 bootloader 构建、依赖版本、路径影响）——留档把 exe 那两行写明是"本机构建记录"而非"可复现"承诺。**"可复跑的是哪一步"必须写清**，否则读者会拿 exe 哈希去校验 |
+| 2026-10-15 | **产物扫描的豁免裁决 = "官方原件同串比对"，且是实算不是清单** | 全 dist 树字节读法扫出 102 处 HARD（99 email + 3 idcard），**全部落在上游二进制**（CPython 组件 / OpenSSL / Qt），本项目自有数据与代码 **0 处**。裁决机制 = 命中串若在**运行本扫描器那条解释器的官方安装目录 + 其 site-packages** 中同串存在 → 判 `UPSTREAM`（**仍打印、仍计数**，只是不阻断）。**为什么不写豁免清单**：清单是"人写死的"，换依赖版本/换机器就与实况脱钩；同串比对是实算。**裁决有牙**（阴性对照实测）：注入一个不在上游的合成邮箱 → 仍判 HARD + exit 1。零 `user_path` 命中（个人路径按**组合签名**匹配，不匹配裸词——否则 Qt DLL 厂商串含用户名子串会刷屏） |
+| 2026-10-15 | **审计器新增 `--dist-path`（产物在仓库树外）** | M5 纪律把构建产物放**仓库树外**（`--distpath` 指向 `$TEMP`，避开 `out/` 被 gitignore 的"看着成功其实没写"），而审计器的 dist 模式原本只认仓库内 `dist/`。二者叠加的后果 = **在正确的纪律下"产物扫描"扫了个空**。故支持显式路径，且在路径不存在时 exit 2 而非静默空扫 |
+| 2026-10-15 | **sha256 留档去掉空行：GNU `sha256sum -c` 会对空行报 "improperly formatted"** | 哈希行仍由 `sha256sum` 输出**直接重定向**生成（手工转录 64 位 hex 错一位肉眼不可查），人只写注释行。但**留档里的空行会让 `sha256sum -c` 输出告警**——**刷屏的校验命令会让读者不再看它的输出**，与"误报会让门禁失效"同一条纪律。处置 = 去空行，`sha256sum -c` 复验输出三行全 `OK`、无告警 |
+| 2026-10-15 | **新增 G-RELEASE 门（`tests/guards/test_release_tooling.py`）** | zip 确定性（两次打包 sha256 相同）+ 条目排序/固定时间戳/STORED 三条 + 随包数据不被拍平 + 构建后三断言（禁区成分 / 内嵌数据逐份一致 / 白名单外多余）各配**变异验证**。夹具用**程序化合成的迷你 dist 树**（不依赖 114MB 真产物），故可在 CI 常跑 |
+| 2026-10-15 | **可见性 public 落地：`gh repo create --public` + SSH remote（不走 `--push`）** | 本机 token scopes = `gist, read:org, repo`，**无 `workflow`**——带 workflow 文件走 HTTPS+token 必被拒、留半失败态。故先建仓（不带 `--push`）→ `git remote set-url` 切 SSH → 一次 push 成（**SSH 不受 OAuth scope 限制**，携带 workflow 文件 GitHub 正常识别并触发 CI） |
+
 ## 三、承诺-证据台账
 
 | 承诺项 | 素材来源 | 交付物内可达性 | 核验方式 | 状态 |
@@ -96,7 +110,9 @@
 | 毛利率定价 | 模块③公式 F3/F4（口径单一定义点 plan/02） | 引擎内嵌 | 基准 B2/B4/B5 双向对账 | ✅ 已达标（M4：B5 两路径互验 + F3→F4 往返；`target_margin=1.0` 拒绝） |
 | 价格波动预警 | 新发地两期快照（✅实测，含大白菜 0.55/0.53/0.40） | 快照样例随包 | 基准 B3 两期快照样例复跑 | ✅ 已达标（M4：B3 7 用例 / 7 形态，五类状态逐类采样 + 排序 + 阈值 + 退化守卫） |
 | 内置基准（新发地真值） | 新发地 API 快照（✅ 4 品类，3 个数据日 467/327/474 条） | 白名单 `data/truth` + `data/snapshots` 随包入 exe | 五套件 + 探活 + **冻结态 exe 实跑 `bench`** | ✅ 已达标（M4：五套件 exit 0 + 八条变异全红 + 覆盖度双登记；M5：冻结态 exe `bench` → 总判达标 exit 0，真值库与快照均从 `_internal/data/` 取到） |
-| PySide6 桌面 exe + CLI | 系列标准形态 | **onedir 双 exe 共享 `_internal/`**，随包数据全在白名单内 | 冻结态 `--selftest`（含窗口版）+ 负向对照 + G-PACK 门 | ✅ 已达标（M5：中立目录实测 `frozen_data_inside_dist=true`；删数据后 `ok=false`+exit 1；G-PACK 20 项绿；构建产物留底在**仓库树外**，M6 才做 sha256 留档） |
+| PySide6 桌面 exe + CLI | 系列标准形态 | **onedir 双 exe 共享 `_internal/`**，随包数据全在白名单内 | 冻结态 `--selftest`（含窗口版）+ 负向对照 + G-PACK 门 | ✅ 已达标（M5：中立目录实测 `frozen_data_inside_dist=true`；删数据后 `ok=false`+exit 1；G-PACK 绿。**M6**：产物留底树外 + `plan/DIST-sha256-M6.txt` 留档 + 确定性 release zip + 构建后三断言；**修复 M6 头号发现**——顶层 `benchmark/` 未进安装面致控制台脚本 `rcc bench` 挂，G-PACK 补两条并配探活） |
+| **发布可用性**（下载→校验→跑起来） | GitHub Releases | `rcc-v0.1.0-win64.zip`（170 条目，ASCII 顶层 `rcc/`） | 归档解压后冻结态 `--selftest` + 随包数据 15/15 sha256 一致 + sha256sum -c 复验 | ✅ 已达标（M6：中立目录解压实测 `frozen=true`/`ok=true`/exit 0；zip 确定性两次打包同 sha256） |
+| **干净环境可安装可跑** | plan/04 §六 | `git archive` 导出树 → 全新 venv → `pip install -e ".[dev]"` | 逐条照 README 快速开始跑退出码 + pytest 收集数对账 | ✅ 已达标（M6：319 passed/3 skipped；收集数 321 与本地同 extras **一致**，差异逐项归因到声明式跳过；**当场抓出 `rcc bench` 控制台通路缺陷并修复**） |
 | 营养成分辅助（扩展项） | foodmate 数据库（✅实测可连） | 不承诺首期 | 非首期 DoD | 扩展项 |
 | 多门店（扩展项） | — | 不承诺首期 | 非首期 DoD | 扩展项 |
 | 联网拉价（扩展项） | 新发地 API（✅可连） | 不承诺首期 | 非首期 DoD | 扩展项 |
@@ -111,7 +127,7 @@
 | M3 核算引擎 | 净料换算 F1、BOM 汇总 F2、毛利率 F3/F4、口径单一定义落地、参数门控三 scope | 公式与注记同源一致、零字面量门禁绿 | ✅ 2026-10-15（**公式原文锚定进 docstring** + 新守门 G-FORMULA-SRC 断言同源，当场抓出 `alert/threshold.py` 的第二份 F5 并修复；零字面量扫描面改整包 + 修 `selftest.py` 手写示例值 + 词边界收紧；门控三 scope 各配 pending/input_required/source 测试；`input_required` 语义修正为"放行门控、值不进可用集、运行时必索"；`yield_rate` 越界 → 行级 invalid 不中断整批；`SourceMissing` 改继承 `ValueError` 修 CLI traceback 逃逸；`qty` 补挂来源 + 消费点校验；BOM 四条形态失败路径 + `target_margin=1.0`/`old_price=0` 边界各有测试；**双解释器 255 passed**；六条变异验证全红；门禁/生成器/快照/审计全绿） |
 | M4 基准 | 五套件（B1–B5）+ 探活 + 覆盖度双登记 + 门槛随 manifest 下发 | 基准可程序化复验、探活全红通过 | ✅ 2026-10-15（**五套件全部达标 exit 0**：B1 19 用例/18 形态、B2 15/15、B3 7/7、B4 29 端点、B5 4 项；**八条变异全红**；覆盖度双登记回填（分母反射自代码常量集、新增代码无用例即生成器报错）；`max_duration_seconds` 真参与判定；误报率样本层实测/规则层显式声明未测；真值库只存输入与期望（观测运行时实算）；**双解释器 287 passed**；门禁/生成器/快照/审计全绿） |
 | M5 交付 | PySide6 exe + CLI 打包、用户手册、随包白名单、GUI 分层门禁 | 免安装 exe 本地可用、**自检断言数据目录落在 exe 目录内** | ✅ 2026-10-15（**onedir 双 exe 本地可用**：`rcc.exe` 控制台 + `rcc-gui.exe` 窗口版共享 `_internal/`；**冻结态自检实测** `frozen=true` 且 `frozen_data_inside_dist=true`（中立目录跑，剥离开发树）；**负向对照**：删掉 `_internal/data` 后自检 `ok=false` + exit 1（不静默回落开发机仓库）；冻结态 `bench` 达标 exit 0、`run`/`check`/`alert`/`--report` 全部可达随包数据；**G-PACK 门落地**（20 项：spec 无手写数据路径/无禁区字面 + datas 只由 `build_datas()` 产生 + 包内布局==仓库相对布局 + 白名单对账 + 冻结判定探活）；**修复实装期发现的真实缺陷**——`build_datas()` 目录条目目标目录写错致随包数据被拍平；**新增 `tests/gui/`**（offscreen 冒烟 + 分层行为门，10 项，零 skip）；**双解释器 317 passed**；九条变异验证全红） |
-| M6 发布 | 发布 GitHub 公开仓库 | **三件套：①git tag ②GitHub Release 附产物（本地留 release zip 副本 + sha256 留档可复验）③发布留档 `plan/RELEASE-M6.md`**；缺任一项即未达成。另：干净环境逐条跑通 + 脱敏四步 + 产物扫描 + 发布物本体已验 | ⬜ |
+| M6 发布 | 发布 GitHub 公开仓库 | **三件套：①git tag ②GitHub Release 附产物（本地留 release zip 副本 + sha256 留档可复验）③发布留档 `plan/RELEASE-M6.md`**；缺任一项即未达成。另：干净环境逐条跑通 + 脱敏四步 + 产物扫描 + 发布物本体已验 | ⏳ 进行中：**干净环境逐条跑通 ✅**（319 passed/3 skipped；退出码表 9 行逐条实测；**抓出并修复 `rcc bench` 控制台通路缺陷**）、**脱敏四步 + 产物扫描 ✅**（历史/内容/元数据 HARD 0；产物本体 102 处经实算裁决为 UPSTREAM、自有数据 0 处）、**`plan/RELEASE-M6.md` ✅**、**确定性 zip + sha256 留档 ✅**；⬜ 三项待做：建仓 push + CI 首跑绿 + tag/Release 附产物（+ 真下载复验） |
 
 ## 五、纪律
 

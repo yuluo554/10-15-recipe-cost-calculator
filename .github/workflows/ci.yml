@@ -75,3 +75,15 @@ jobs:
           python -m rcc.cli selftest
           python -m rcc.cli run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json || test $? -eq 1
           python -m rcc.cli bench
+
+      - name: Console-script smoke (rcc) — 用户在 README 里敲的那条通路
+        # 为什么单独一步：M6 干净环境验证抓出的头号缺陷正出在这条通路上——
+        # 顶层 benchmark/ 未进安装面时，`python -m rcc.cli bench`（CWD 在
+        # sys.path 上）能过，而**装好的 `rcc bench` 会 ModuleNotFoundError**。
+        # 用 python -m 冒烟等于永远问不到"用户装完到底能不能跑"。
+        shell: bash
+        run: |
+          rcc --version
+          rcc selftest
+          rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json || test $? -eq 1
+          rcc bench
