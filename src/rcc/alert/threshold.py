@@ -99,7 +99,9 @@ def impacted_dishes(cards, changes, old_snapshot, new_snapshot, cost_params):
         old_cost = dish_cost_with(old_prices, card)
         new_cost = dish_cost_with(new_prices, card)
         delta = new_cost - old_cost
-        rate = delta / old_cost if old_cost > 0 else None
+        # 成本涨跌幅走 F5 正本，**不在这里手写 delta/old_cost**——那是第二份口径。
+        # 旧成本为 0 时 F5 拒绝（缺基准），此处按"无基准"记 None（不臆造涨跌幅）。
+        rate = formulas.change_rate(old_cost, new_cost) if old_cost > 0 else None
         out.append({
             "dish": card["dish"],
             "touched_foods": sorted(touched),

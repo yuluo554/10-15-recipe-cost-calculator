@@ -361,3 +361,151 @@ def test_sample_covers_all_three_states(repo_root):
     assert {"invalid", "unknown"} <= statuses
     assert payload["library_size"] > 0, "ok 行应进入食材库"
 
+
+# ------------------------------------------------- 核算引擎失败路径（M3）
+#
+# **退出码语义**：行级问题 → exit 1（降级完成，清单里能看见）；
+# 形态/输入不可用 → exit 2。两者混淆会让"部分可用"被当成"完全不可用"。
+
+def _params_copy(repo_root, tmp_path, mutate, name="params-m3.json"):
+    """复制随包参数包并施加改动。"""
+    import json
+
+    with open(os.path.join(repo_root, "data", "rules", "params.json"),
+              encoding="utf-8") as fh:
+        payload = json.load(fh)
+    mutate(payload)
+    path = tmp_path / name
+    with open(str(path), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    return str(path)
+
+
+def test_target_margin_one_is_exit_2(repo_root, tmp_path):
+    """``target_margin = 1.0`` → 拒绝（**非除零**）→ exit 2。"""
+    path = _params_copy(
+        repo_root, tmp_path,
+        lambda p: p["pricing"]["target_margin"].update({"value": "1.0"}))
+    code, _out, err = _run_cli(repo_root, "run", "--params", path,
+                               "--purchases", SAMPLE, "--bom", BOM)
+    assert code == 2, "target_margin=1 应走输入不可用 exit 2，实际 %d\n%s" % (code, err)
+    assert "小于 1" in err, "报错未说明真因:\n%s" % err
+
+
+def test_old_price_zero_in_snapshot_is_exit_2(repo_root, tmp_path):
+    """``old_price = 0`` → 拒绝（**非除零**，缺对比基准）→ exit 2。
+
+    用真实快照副本把某食材的旧价改为 0，验证 F5 的前提校验在端到端通路上生效。
+    选 08-06 快照的**首条记录**（大白菜，且被样例 BOM 引用）——若选一个 BOM 不
+    引用的食材，F5 根本不会被触发，测试就变成了"恒真假门"。
+    """
+    import json
+
+    snap_src = os.path.join(repo_root, "data", "snapshots", "xinfadi-2026-08-06.json")
+    with open(snap_src, encoding="utf-8") as fh:
+        payload = json.load(fh)
+    target = payload["list"][0]["prodName"]
+    # 断言该食材确被样例 BOM 引用（否则本测试测的不是被测的那件事）
+    with open(os.path.join(repo_root, "data", "samples", "bom-demo.json"),
+              encoding="utf-8") as fh:
+        bom_payload = json.load(fh)
+    bom_foods = {item["food"] for dish in bom_payload["dishes"]
+                 for item in dish["items"]}
+    assert target in bom_foods, (
+        "选中的旧价置零食材 %r 未被样例 BOM 引用——F5 不会被触发（假门）" % target)
+
+    # 只保留该食材这一条并置零（其余同名记录会覆盖，需剔除）
+    payload["list"][0]["avgPrice"] = "0"
+    payload["list"] = [r for index, r in enumerate(payload["list"])
+                       if r.get("prodName") != target or index == 0]
+    snap = tmp_path / "old-zero.json"
+    with open(str(snap), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False))
+    meta = tmp_path / "old-zero.meta.json"
+    with open(str(meta), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps({"captured_date": "2026-10-15", "data_date": "2026-08-06",
+                             "url": "local", "unit": "元/斤", "note": "测试副本"}))
+
+    new_snap = os.path.join(repo_root, "data", "snapshots", "xinfadi-2026-10-06.json")
+    code, _out, err = _run_cli(repo_root, "run", "--with-alert",
+                               "--purchases", SAMPLE, "--bom", BOM,
+                               "--snapshots", str(snap), new_snap)
+    assert code == 2, "旧价为 0 应被拒绝（exit 2），实际 %d\n%s" % (code, err)
+    assert "大于 0" in err or "缺对比基准" in err, \
+        "旧价为 0 的拒绝原因未说明:\n%s" % err
+
+
+def test_yield_rate_out_of_range_is_degraded_not_aborted(repo_root, tmp_path):
+    """净料率越界 → **该行 invalid 并入清单**，退出码 1（其余菜品照常出数）。"""
+    path = _params_copy(
+        repo_root, tmp_path,
+        lambda p: p["yield_rates"]["大白菜"].update({"value": "1.5"}))
+    code, out, err = _run_cli(repo_root, "run", "--json", "--params", path,
+                              "--purchases", SAMPLE, "--bom", BOM)
+    assert code == 1, "行级问题应 exit 1（降级完成），实际 %d\n%s" % (code, err)
+    import json
+
+    payload = json.loads(out)
+    codes = [w.get("code") for w in payload["warnings"]]
+    assert "yield_rate_out_of_range" in codes, "越界未列入异常清单"
+    dishes = [c["dish"] for c in payload["cards"]]
+    assert "醋溜白菜" not in dishes, "越界的那道菜必须被排除"
+    assert len(dishes) == 4, "其余菜品必须照常算出（不中断整批）"
+
+
+def test_all_yield_rates_out_of_range_is_exit_2(repo_root, tmp_path):
+    """全部菜品被排除 → 成本卡为空 → 输入不可用 exit 2（不产出"0 道菜"）。"""
+    path = _params_copy(
+        repo_root, tmp_path,
+        lambda p: [p["yield_rates"][k].update({"value": "1.5"})
+                   for k in p["yield_rates"]])
+    code, _out, err = _run_cli(repo_root, "run", "--params", path,
+                               "--purchases", SAMPLE, "--bom", BOM)
+    assert code == 2, err
+    assert "成本卡为空" in err
+
+
+def test_missing_source_is_exit_2_not_traceback(repo_root, tmp_path):
+    """``source`` 缺失 → ``source_missing`` 拒绝 → exit 2（**不是未捕获 traceback**）。"""
+    path = _params_copy(
+        repo_root, tmp_path,
+        lambda p: p["yield_rates"]["大白菜"].pop("source"))
+    code, _out, err = _run_cli(repo_root, "run", "--params", path,
+                               "--purchases", SAMPLE, "--bom", BOM)
+    assert code == 2, "缺来源应走 exit 2，实际 %d\n%s" % (code, err)
+    assert "Traceback" not in err, "缺来源不应逃逸成未捕获异常:\n%s" % err
+
+
+@pytest.mark.parametrize("name,payload,expect", [
+    ("no-dishes.json", "{}", "缺少 dishes"),
+    ("empty-dishes.json", '{"dishes": []}', "为空"),
+    ("no-name.json", '{"dishes": [{"items": [{"food": "大白菜", "qty": "1"}]}]}',
+     "缺少 name"),
+    ("missing-food.json",
+     '{"dishes": [{"name": "测试菜", "items": [{"food": "不存在食材X", "qty": "1"}]}]}',
+     "不存在的食材"),
+])
+def test_bom_shape_failures_are_exit_2(repo_root, tmp_path, name, payload, expect):
+    """BOM 形态失败四条 → 一律 exit 2（**整份文件的形态问题，不是某一行的问题**）。"""
+    bom = tmp_path / name
+    with open(str(bom), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(payload)
+    code, _out, err = _run_cli(repo_root, "run", "--purchases", SAMPLE, "--bom", str(bom))
+    assert code == 2, "BOM 形态问题应为 exit 2，实际 %d\n%s" % (code, err)
+    assert expect in err, "报错未说明真因（期望含 %r）:\n%s" % (expect, err)
+
+
+def test_missing_rate_entry_is_exit_2_not_defaulted(repo_root, tmp_path):
+    """``input_required``：本不由参数包承载的净料率缺失 → exit 2，**不静默取默认值**。"""
+    bom = tmp_path / "bom.json"
+    with open(str(bom), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write('{"dishes": [{"name": "测试菜", "items": [{"food": "未知食材X", "qty": "1"}]}]}')
+    purchases = tmp_path / "p.csv"
+    with open(str(purchases), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("日期,品名,类别,数量,单位,单价,金额\n"
+                 "2026-10-01,未知食材X,其他,10,斤,3.00,30.00\n")
+    code, _out, err = _run_cli(repo_root, "run",
+                               "--purchases", str(purchases), "--bom", str(bom))
+    assert code == 2, err
+    assert "净料率" in err
+

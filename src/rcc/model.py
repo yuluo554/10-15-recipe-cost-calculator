@@ -32,14 +32,24 @@ PARAM_INPUT_REQUIRED = "input_required"
 SCOPES = ("cost", "pricing", "alert")
 
 
-class SourceMissing(Exception):
-    """参数未挂来源标记，或来源类型未登记。"""
+class SourceMissing(ValueError):
+    """参数未挂来源标记，或来源类型未登记。
+
+    继承 ``ValueError`` 而非裸 ``Exception``：它是一条**输入不可用**的失败路径
+    （plan/04 §三：``source`` 缺失 → ``source_missing`` 拒绝，退出码 2），
+    必须被 CLI 的 ``except (ParamsError, ValueError)`` 捕获。裸 ``Exception``
+    会从 CLI 逃逸成未捕获 traceback——那等于把"该报的错"变成"崩了"。
+
+    ``code`` 供机读判据（测试断言它，不去匹配中文散文）。
+    """
+
+    code = "source_missing"
 
 
 def to_decimal(value):
     """把输入安全转成 Decimal。
 
-    float 一律先经 ``str`` 再转（``Decimal(0.1)`` 会带二进制尾差），
+    float 一律先经 ``str`` 再转（直接 ``Decimal(float)`` 会带二进制尾差），
     字符串直接解析，Decimal 原样返回。
     """
     if isinstance(value, Decimal):

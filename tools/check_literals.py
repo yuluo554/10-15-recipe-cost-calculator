@@ -25,13 +25,14 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARAMS_PATH = os.path.join(REPO_ROOT, "data", "rules", "params.json")
 
 # 扫描面：随交付形态扩张。新增交付形态时要问"它该不该进扫描面？"
+#
+# **M3 复核收紧**：原先逐目录枚举（engine/alert/rules/report/gui/cli.py/benchmark）
+# 会漏掉同属计算路径的模块——`selftest.py` 就曾带着手写的公式探针数值待在面外，
+# 悄悄长出了第二份口径。枚举式扫描面的失效模式是"漏一个文件而不自知"，
+# 故改为**整包扫描** `src/rcc`（含 io/selftest/packaging/model 等全部子模块），
+# 使"计算路径上的任何源码"都无处可逃。
 SCAN_GLOBS = (
-    "src/rcc/engine",
-    "src/rcc/alert",
-    "src/rcc/rules",
-    "src/rcc/report",
-    "src/rcc/gui",
-    "src/rcc/cli.py",
+    "src/rcc",
     "benchmark",
 )
 
@@ -107,9 +108,14 @@ def banned_tokens(params_path=PARAMS_PATH):
 
 
 def _token_regex(token):
-    """词边界正则：防 ``0.8`` 命中 ``0.85`` 的子串。"""
+    """词边界正则：防 ``0.8`` 命中 ``0.85`` 的子串。
+
+    尾边界除数字外还排除 ``\\.[0-9]``——防把版本号一类**更长的点分数字串**
+    （如 ``0.1.0``）误判成业务数值 ``0.1``。这类误报会让门禁刷屏，而刷屏的门禁
+    最终会被"加豁免"加到失效。
+    """
     escaped = re.escape(token)
-    return re.compile(r"(?<![0-9.])" + escaped + r"(?![0-9])")
+    return re.compile(r"(?<![0-9.])" + escaped + r"(?![0-9]|\.[0-9])")
 
 
 def scan_text(text, tokens):
@@ -177,12 +183,23 @@ def selftest():
         print("LITERAL_GATE_SELFTEST_FAIL: 阴性对照误报 %r" % (negative,))
         return 1
 
-    # 子串边界对照：token 的前缀不应被误报
+    # 子串边界对照：token 的前缀不应被误报为独立 token
     if len(probe_token) > 1:
         prefix = probe_token[:-1]
-        boundary = scan_text("value = %s9\n" % prefix, tokens)
-        # 允许命中（如果 prefix 本身是独立 token），只要求不因 token 而误报
-        del boundary
+        if scan_text("value = %s9\n" % prefix, tokens):
+            print("LITERAL_GATE_SELFTEST_FAIL: 前缀 %r 被误报（词边界失效）" % prefix)
+            return 1
+
+    # 版本号对照：更长的点分数字串（如 0.1.0）不得被误判为业务数值 0.1。
+    # 这条与扫描面纳入 __init__.py 同时生效——否则门禁会因版本号刷屏。
+    for short in ("0.1", "0.6", "0.8"):
+        if short not in tokens:
+            continue
+        version_like = "version = %s.0\n" % short
+        if scan_text(version_like, tokens):
+            print("LITERAL_GATE_SELFTEST_FAIL: 版本号形态 %r 被误报为业务数值 %r"
+                  % (version_like.strip(), short))
+            return 1
 
     print("LITERAL_GATE_SELFTEST_OK")
     return 0

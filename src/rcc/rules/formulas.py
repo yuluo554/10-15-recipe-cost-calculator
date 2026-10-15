@@ -3,6 +3,11 @@
 本模块是 plan/02 的代码化身：引擎、报告、基准、文档一律引用此处，
 **禁止任何地方手写第二份口径**（含 docstring 与注释里的示例数值）。
 
+每个函数的 docstring 复述 plan/02 §一 表格里的**公式原文**（`net_unit_price =
+purchase_unit_price / yield_rate` 一类），使"公式与注记同源一致"成为可断言的
+字符串性质（守门见 ``tests/guards/test_formula_single_source.py``）——而不是靠
+人工比对两份文档。**注意复述的是公式形态，不含任何业务数值**（数值一律来自参数包）。
+
 全部公式接受/返回 ``Decimal``；前提校验失败一律抛 ``FormulaError``，
 由调用方列入异常清单——**不静默跳过、不静默取 0/1**。
 """
@@ -22,7 +27,9 @@ def _require(cond, msg):
 
 
 def net_unit_price(purchase_unit_price, yield_rate):
-    """F1 净料单价 = 毛料进货单价 ÷ 净料率。
+    """F1 净料单价。
+
+    公式（plan/02 §一）：``net_unit_price = purchase_unit_price / yield_rate``
 
     ``yield_rate`` 是"净料重 / 毛料重"，取值域 ``(0, 1]``——因此净料单价
     **必然 ≥ 毛料单价**。方向反了会算出净料单价 < 毛料单价，属实现缺陷。
@@ -47,7 +54,9 @@ def loss_rate(yield_rate):
 
 
 def dish_cost(items):
-    """F2 单份成本 = Σ(净料单价 × 用量)。
+    """F2 单份成本。
+
+    公式（plan/02 §一）：``dish_cost = Σ_i (net_unit_price_i × qty_i)``
 
     ``items`` 为 ``(net_price, qty)`` 序列。BOM 不得为空——空 BOM 是数据缺陷，
     不是"成本为 0"。
@@ -65,7 +74,9 @@ def dish_cost(items):
 
 
 def suggested_price(cost, target_margin):
-    """F3 建议售价 = 成本 ÷ (1 − 目标毛利率)。
+    """F3 建议售价。
+
+    公式（plan/02 §一）：``suggested_price = dish_cost / (1 - target_margin)``
 
     ``target_margin = 1`` 不可解（除零），门控拒绝。
     返回值**先量化**——真实挂牌价是分位值；F4 据此反算实际毛利率，
@@ -80,7 +91,9 @@ def suggested_price(cost, target_margin):
 
 
 def actual_margin(price, cost):
-    """F4 实际毛利率 = (售价 − 成本) ÷ 售价。
+    """F4 实际毛利率。
+
+    公式（plan/02 §一）：``actual_margin = (price - dish_cost) / price``
 
     售价为 0 不可解，门控拒绝。负毛利**如实报负**，不夹断为 0。
     """
@@ -92,7 +105,9 @@ def actual_margin(price, cost):
 
 
 def change_rate(old_price, new_price):
-    """F5 涨跌幅 = (新价 − 旧价) ÷ 旧价。
+    """F5 涨跌幅。
+
+    公式（plan/02 §一）：``change_rate = (new_price - old_price) / old_price``
 
     旧价为 0 不可解（不是除零错误，是缺基准），门控拒绝。
     涨为正、跌为负，符号如实。

@@ -141,6 +141,9 @@ def build_sections(result):
             ysrc = line.get("yield_source") or {}
             source_rows.append(["净料率·" + line["food"], ysrc.get("kind", ""),
                                 ysrc.get("ref", ""), _fmt(ysrc.get("date"))])
+            qsrc = line.get("qty_source") or {}
+            source_rows.append(["用量·" + line["food"], qsrc.get("kind", ""),
+                                qsrc.get("ref", ""), _fmt(qsrc.get("date"))])
     for row in result.get("pricing", []):
         src = row.get("margin_source") or {}
         source_rows.append(["目标毛利率·" + row["dish"], src.get("kind", ""),

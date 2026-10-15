@@ -51,16 +51,30 @@ def run_selftest():
     except Exception as exc:  # noqa: BLE001
         add("params_loadable", False, "%s: %s" % (type(exc).__name__, exc))
 
-    # 核心公式通路可跑（不读任何外部文件）
+    # 核心公式通路可跑（探针数值取自参数包，**不手写业务数值**——plan/02 禁
+    # 第二份口径，含注释与示例数值；手写示例值即等于在代码里长了第二份真相）
     try:
         from decimal import Decimal
 
+        from .model import MONEY_EXP, to_decimal
         from .rules import formulas
 
-        net = formulas.net_unit_price(Decimal("8"), Decimal("0.8"))
-        price = formulas.suggested_price(Decimal("10"), Decimal("0.6"))
-        add("formulas_ok", net == Decimal("10") and price == Decimal("25"),
-            "net=%s price=%s" % (net, price))
+        data = load_params()
+        cost_params = effective_params("cost")
+        probe_name = sorted(cost_params)[0]
+        rate = to_decimal(cost_params[probe_name]["value"])
+        purchase = Decimal(1)
+        net = formulas.net_unit_price(purchase, rate)
+        # F1 方向纪律：净料率 ∈ (0,1] ⇒ 净料单价必然 ≥ 毛料单价
+        direction_ok = net >= purchase
+        # F3→F4 往返：建议售价先量化，据此反算的实际毛利率应回到目标（误差 ≤ 量化一步）
+        target = to_decimal(data["pricing"]["target_margin"]["value"])
+        price = formulas.suggested_price(purchase, target)
+        margin_back = formulas.actual_margin(price, purchase)
+        roundtrip_ok = abs(margin_back - target) <= MONEY_EXP
+        add("formulas_ok", bool(direction_ok and roundtrip_ok),
+            "净料单价≥毛料单价=%s 反算毛利率回到目标=%s（探针取自参数包条目 %s）"
+            % (direction_ok, roundtrip_ok, probe_name))
     except Exception as exc:  # noqa: BLE001
         add("formulas_ok", False, "%s: %s" % (type(exc).__name__, exc))
 

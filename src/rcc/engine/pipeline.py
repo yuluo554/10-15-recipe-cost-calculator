@@ -10,22 +10,64 @@
 """
 
 import os
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from .. import __version__
 from ..alert import threshold as alert_mod
 from ..io import csv_import, snapshot
-from ..model import STATUS_INVALID, quantize_money, quantize_rate, to_decimal
+from ..model import (
+    STATUS_INVALID,
+    SourceMissing,
+    quantize_money,
+    quantize_rate,
+    to_decimal,
+    validate_source,
+)
 from ..rules import formulas
-from ..rules.params import effective_params, load_params, scope_report
+from ..rules.params import (
+    ParamsInputRequired,
+    effective_params,
+    load_params,
+    scope_report,
+)
 
 # 参数门控的三个计算作用域
 SCOPE_ORDER = ("cost", "pricing", "alert")
 
+# 成本卡行级异常代码（机读判据）。
+# **行级与文件级不混用**（K28）：本代码描述"某道菜的某个食材行算不出净料单价"，
+# 与 csv_import 的进货单行级代码、以及 line=0 的文件级代码（`no_usable_rows`）
+# 语义各不相同，故各自独立登记。
+ISSUE_YIELD_OUT_OF_RANGE = "yield_rate_out_of_range"
+ISSUE_QTY_INVALID = "qty_invalid"
+# 文件级结论：全部菜品都因行级问题被排除 → 成本卡为空
+ISSUE_NO_USABLE_DISHES = "no_usable_dishes"
+
+
+def _line_issue(dish, food, code, reason):
+    """成本卡行级异常条目。
+
+    ``where`` 是**人读定位标签**（菜品·食材），与进货单的行号定位并列而不混用：
+    成本卡的行不是 CSV 的行，没有行号可指，硬填一个行号会让读者去查一个不存在的位置。
+    """
+    return {"line": None, "where": "菜品「%s」·食材「%s」" % (dish, food),
+            "status": STATUS_INVALID, "code": code, "reason": reason}
+
 
 def _load_bom(path):
-    """读菜品配方 BOM：``{"dishes": [{"name":..., "items":[{"food":..., "qty":...}]}]}``。"""
-    from ..model import load_json_decimal
+    """读菜品配方 BOM，返回 ``(dishes, source)``。
+
+    形态：``{"dishes": [{"name":..., "items":[{"food":..., "qty":...}]}]}``。
+
+    形态失败（缺 ``dishes`` / 空数组 / 非 JSON 对象）一律抛错 → CLI exit 2：
+    这是整份文件的形态问题，不是某一行的问题（同 K20 的进货单口径）。
+
+    **用量（``qty``）也必须挂来源**（plan/02 §二：每个进入计算路径的参数必须挂
+    ``source``，``qty`` 的承载位置就是菜品 BOM、``kind = user``）。来源挂在
+    **文件级**——同一份 BOM 里所有用量共享同一出处（"这份用户配方"），逐行重复
+    同一个来源对象只是噪声，不是更强的保证。
+    """
+    from ..model import load_json_decimal, make_source
 
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
@@ -33,7 +75,26 @@ def _load_bom(path):
     dishes = data.get("dishes") if isinstance(data, dict) else None
     if not isinstance(dishes, list) or not dishes:
         raise ValueError("BOM 文件缺少 dishes 数组或为空")
-    return dishes
+    source = make_source("user", os.path.basename(path),
+                         note="用户配方 BOM（用量来源）")
+    return dishes, source
+
+
+def _sourced(source, label):
+    """在**消费点**显式校验来源标记（plan/02 §二：未挂来源的参数不得进入计算路径）。
+
+    与 ``make_source`` 的构造期校验是两件事：来源对象可能来自**解析后的 JSON**
+    （参数包条目、快照元数据、进货单行），那条路径不经过 ``make_source``。只在
+    构造期校验等于**只守了自己造的那一半**——来自外部文件的来源对象会静默溜过。
+
+    ``label`` 进报错文案，点明**是哪个参数**没挂来源——只报"参数未挂来源标记"
+    会让用户不知道该补哪个（同 K24：错误必须指向正确的对象）。
+    """
+    try:
+        validate_source(source)
+    except SourceMissing as exc:
+        raise SourceMissing("参数「%s」的来源标记不合法（%s）" % (label, exc))
+    return source
 
 
 def yield_rate_for(cost_params, food):
@@ -42,32 +103,77 @@ def yield_rate_for(cost_params, food):
     ``cost_params`` 是 ``effective_params("cost")`` 的返回值（即参数包的
     ``yield_rates`` 分区本身，键为食材名）。
 
-    ``input_required`` 语义：参数包**本不承载**该食材的净料率时，运行时必须索取，
-    **绝不静默取默认值**。此处显式抛错交由 CLI 转成退出码 2。
+    ``input_required`` 语义（plan/02 §三：**放行门控，但运行时必索，绝不静默取
+    默认值**）：参数包**本不承载**该食材的净料率时，此处显式抛
+    ``ParamsInputRequired`` 交由 CLI 转成退出码 2。注意这与 ``effective_params``
+    的门控不是同一步——门控放行（不阻断该作用域），索取发生在**取数点**。
+
+    注意区分两种"净料率有问题"（plan/02 §一）：
+
+    - **缺条目**（本不由参数包承载）→ 缺输入 → exit 2（本函数抛错）；
+    - **有条目但值越界** ∉ (0,1] → **该行 invalid 并入清单** → exit 1
+      （由 ``compute_costcard`` 记 issue，不在此处抛错）。
     """
     entry = cost_params.get(food)
     if not isinstance(entry, dict) or "value" not in entry:
-        raise formulas.FormulaError(
-            "食材「%s」缺少净料率（本不由参数包承载，需显式提供）" % food)
+        raise ParamsInputRequired(
+            "cost", [food],
+            detail="食材「%s」缺少净料率（本不由参数包承载，需显式提供）" % food)
     return to_decimal(entry["value"]), entry
 
 
-def compute_costcard(dishes, library, cost_params):
-    """成本卡：F1 净料换算 → F2 BOM 汇总。逐行留痕可追溯。"""
-    cards = []
+def compute_costcard(dishes, library, cost_params, qty_source):
+    """成本卡：F1 净料换算 → F2 BOM 汇总。逐行留痕可追溯。
+
+    返回 ``{"cards": [...], "issues": [...]}``。
+
+    **行级前提校验的失败形态**（plan/02 §一：越界一律判该行 ``invalid`` 并列入
+    异常清单，不静默跳过、不静默取 0/1）：
+
+    - 某食材的净料率越界 ∉ (0,1] → 记一条行级 issue；
+    - 某食材的用量非数值或为负 → 记一条行级 issue。
+
+    此时**整道菜**（而非仅该行）被排除出成本卡：成本是各行之和，丢掉一行再报出
+    一个"看起来完整"的合计，等于把一个自洽但偏低的数字当成对的（plan/02 §5 红线
+    同旨）。**该判断登记为口径**——否则下一个人会把"丢行求和"实现成另一种，
+    两者都能自圆其说。
+
+    ``qty_source`` 是用量的来源标记（挂在 BOM 文件级，见 ``_load_bom``）：在
+    **消费点**显式校验，未挂来源即抛 ``SourceMissing``。
+    """
+    _sourced(qty_source, "BOM 用量")
+    cards, issues = [], []
     for dish in dishes:
         name = dish.get("name")
         if not name:
             raise ValueError("BOM 中存在缺少 name 的菜品条目")
         items = dish.get("items") or []
-        lines, bom_items = [], []
+        lines, bom_items, dish_issues = [], [], []
         for item in items:
             food = item.get("food")
             if food not in library:
                 raise ValueError("菜品「%s」引用了食材库中不存在的食材: %s" % (name, food))
-            qty = to_decimal(item.get("qty", "0"))
-            purchase_price = library[food]["ref_price"]
+
             rate, entry = yield_rate_for(cost_params, food)
+            if not (Decimal(0) < rate <= Decimal(1)):
+                dish_issues.append(_line_issue(
+                    name, food, ISSUE_YIELD_OUT_OF_RANGE,
+                    "净料率越界（须 ∈ (0,1]，实为 %s）" % rate))
+                continue
+
+            try:
+                qty = to_decimal(item.get("qty", "0"))
+            except (InvalidOperation, TypeError, ValueError):
+                dish_issues.append(_line_issue(
+                    name, food, ISSUE_QTY_INVALID,
+                    "用量非数值: %r" % item.get("qty")))
+                continue
+            if qty < 0:
+                dish_issues.append(_line_issue(
+                    name, food, ISSUE_QTY_INVALID, "用量为负: %s" % qty))
+                continue
+
+            purchase_price = library[food]["ref_price"]
             net_price = formulas.net_unit_price(purchase_price, rate)
             line_cost = net_price * qty
             lines.append({
@@ -78,10 +184,16 @@ def compute_costcard(dishes, library, cost_params):
                 "net_unit_price": quantize_money(net_price),
                 "qty": qty,
                 "line_cost": quantize_money(line_cost),
-                "yield_source": entry.get("source"),
-                "price_source": library[food]["source"],
+                "yield_source": _sourced(entry.get("source"), "净料率"),
+                "price_source": _sourced(library[food]["source"], "进货单价"),
+                "qty_source": qty_source,
             })
             bom_items.append((net_price, qty))
+
+        if dish_issues:
+            # 有任何一行不成立，整道菜的成本都不可信 → 排除并列出原因
+            issues.extend(dish_issues)
+            continue
 
         cost = formulas.dish_cost(bom_items)
         cards.append({
@@ -90,7 +202,7 @@ def compute_costcard(dishes, library, cost_params):
             "cost": quantize_money(cost),
             "cost_exact": cost,
         })
-    return cards
+    return {"cards": cards, "issues": issues}
 
 
 def compute_pricing(cards, pricing_params):
@@ -198,9 +310,17 @@ def compute_full(args):
 
     if not getattr(args, "bom", None):
         raise ValueError("缺少 --bom 输入")
-    dishes = _load_bom(args.bom)
+    dishes, qty_source = _load_bom(args.bom)
 
-    cards = compute_costcard(dishes, library, cost_params)
+    costcard = compute_costcard(dishes, library, cost_params, qty_source)
+    cards = costcard["cards"]
+    warnings.extend(costcard["issues"])
+    if not cards:
+        # 全部菜品都因行级问题被排除 → 成本卡为空，无法进入定价。
+        # 这是**输入数据不可用**（exit 2），不是"算出了 0 道菜"。
+        raise ValueError(
+            "BOM 中 %d 道菜全部存在行级问题，成本卡为空——请先修正 BOM 或净料率参数"
+            % len(dishes))
     pricing = compute_pricing(cards, effective_params("pricing", params_path))
 
     result = {
@@ -268,10 +388,23 @@ def check_inputs(args):
 
     cards = []
     if getattr(args, "bom", None):
-        dishes = _load_bom(args.bom)
+        dishes, qty_source = _load_bom(args.bom)
         if library:
-            cards = compute_costcard(dishes, library, cost_params)
-            summary_parts.append("成本卡 %d 道菜" % len(cards))
+            costcard = compute_costcard(dishes, library, cost_params, qty_source)
+            cards = costcard["cards"]
+            issues.extend(costcard["issues"])
+            excluded = len(dishes) - len(cards)
+            summary_parts.append("成本卡 %d 道菜%s"
+                                 % (len(cards),
+                                    "（%d 道因行级问题被排除）" % excluded if excluded else ""))
+            if not cards:
+                # 文件级结论（同 K28：行级代码与文件级代码不混用）——
+                # "全部菜都算不出来"不是"某道菜有问题"，它不指向任何一道具体的菜。
+                issues.append({
+                    "line": 0, "status": STATUS_INVALID,
+                    "code": ISSUE_NO_USABLE_DISHES,
+                    "reason": "BOM 全部菜品均存在行级问题——成本卡为空",
+                })
         else:
             summary_parts.append("BOM %d 道菜（未核对：食材库为空）" % len(dishes))
 
@@ -307,16 +440,28 @@ def render_issues(issues):
     摘要里写着"见清单"，那就必须真有清单可看——否则读者拿到的是一句指向空处的
     指路语。报告层与 CLI 都消费本函数，**不各写一份格式**。
 
+    三种定位形态各有其位，**不得互相冒充**（同 K28 的行级/文件级不混用）：
+
+    - ``line`` 为正整数 → 进货单的第 N 行；
+    - ``line == 0`` → **文件级结论**（如零可用行），不指向具体某行；
+    - ``line`` 为 ``None`` 且有 ``where`` → **成本卡的行级问题**（按"菜品·食材"定位，
+      没有 CSV 行号可指——硬填一个行号会让读者去查一个不存在的位置）。
+
     返回行列表（不含换行），便于调用方决定缩进与流。
     """
     if not issues:
         return []
     lines = ["异常清单（逐条列出，未静默跳过）:"]
-    width = max(len(str(issue.get("line", ""))) for issue in issues)
     for issue in issues:
-        line_no = str(issue.get("line", ""))
-        # line=0 是"文件级"结论（如零可用行），不指向具体某行
-        where = "第 %s 行" % line_no.rjust(width) if line_no.isdigit() and int(line_no) else "文件级"
+        line_no = issue.get("line")
+        if line_no is None and issue.get("where"):
+            where = issue["where"]
+        elif line_no is None:
+            where = "未知位置"
+        elif int(line_no):
+            where = "第 %s 行" % line_no
+        else:
+            where = "文件级"
         lines.append("  %s  [%s] %s" % (where, issue.get("status", ""),
                                         issue.get("reason", "")))
     return lines
