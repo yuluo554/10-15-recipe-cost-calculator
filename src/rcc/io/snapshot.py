@@ -24,10 +24,20 @@ def file_sha256(path):
 
 
 def load_snapshot(path):
-    """读快照原始 JSON，返回 ``{"date":..., "prices": {品名: Decimal}, "source": {...}}``。
+    """读快照原始 JSON，返回 ``{"date":..., "captured_date":..., "prices": {...}, "source": {...}}``。
 
-    抓取日期从同目录 ``<name>.meta.json`` 读；缺失即抛错——**未挂来源的快照
+    来源元数据从同目录 ``<name>.meta.json`` 读；缺失即抛错——**未挂来源的快照
     不得进入计算路径**。
+
+    **两个日期不是一回事**（M1 实测暴露，防"两期退化成同一期"）：
+
+    - ``date`` = **数据日**（``meta.data_date``，行情所属交易日）——它是"两期快照"
+      的**期间标识**，预警新旧两期据此区分；
+    - ``captured_date`` = **抓取日**（``meta.captured_date``）——留档可复现性用，
+      同一抓取日可以抓多个数据日。
+
+    旧形态元数据只有 ``captured_date``（M0 期无真实多期快照）时，``date`` 回落
+    抓取日以保持兼容。
     """
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
@@ -55,12 +65,17 @@ def load_snapshot(path):
             continue
         prices[name] = to_decimal(avg)
 
+    # 数据日优先；旧形态（无 data_date）回落抓取日
+    data_date = meta.get("data_date") or meta.get("captured_date")
+    captured_date = meta.get("captured_date") or data_date
+
     return {
-        "date": meta.get("captured_date"),
+        "date": data_date,
+        "captured_date": captured_date,
         "prices": prices,
         "unit": meta.get("unit"),
         "source": make_source("snapshot", os.path.basename(path),
-                              date=meta.get("captured_date"),
+                              date=data_date,
                               note=meta.get("note")),
         "sha256": file_sha256(path),
     }

@@ -1,0 +1,51 @@
+{
+  "captured_date": "2026-10-15",
+  "categories": [
+    {
+      "count": 104,
+      "id": "1186",
+      "name": "蔬菜"
+    },
+    {
+      "count": 83,
+      "id": "1187",
+      "name": "水果"
+    },
+    {
+      "count": 140,
+      "id": "1189",
+      "name": "肉禽蛋"
+    },
+    {
+      "count": 0,
+      "id": "1190",
+      "name": "水产"
+    }
+  ],
+  "data_date": "2026-09-06",
+  "distinct_prodname_count": 297,
+  "duplicate_prodname_count": 30,
+  "generated_by": "tools/fetch_snapshots.py",
+  "method": "POST",
+  "name": "xinfadi-2026-09-06",
+  "note": "新发地公开批发价快照（数据日 2026-09-06），抓取于 2026-10-15；整日全品类，sha256 见台账。逐条单位以原始件 unitInfo 为准（本字段为多数单位）。",
+  "record_count": 327,
+  "request": {
+    "current": "1",
+    "limit": "1000",
+    "pubDateEndTime": "2026-09-06",
+    "pubDateStartTime": "2026-09-06"
+  },
+  "response_file": "xinfadi-2026-09-06.json",
+  "schema_version": "1",
+  "sha256": "e244747a30cc23ab8976790c3a2ba556eaebaf818959dd1bc2174c6baec86eab",
+  "unit": "斤",
+  "unit_counts": {
+    "个": 7,
+    "只": 1,
+    "斤": 317,
+    "筐": 1,
+    "箱": 1
+  },
+  "url": "http://www.xinfadi.com.cn/getPriceData.html"
+}

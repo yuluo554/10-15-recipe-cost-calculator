@@ -1,6 +1,6 @@
 # 菜谱/食堂采购成本核算器
 
-> **状态**：🚧 v0.1.0 开发中（M0 骨架已落地，M1 数据先行待开工）
+> **状态**：🚧 v0.1.0 开发中（M0 骨架、M1 数据先行已落地；M2 导入待开工）
 
 把"进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警"做成**确定性规则引擎**：结论 100% 可复现、纯本地运行、零账号零上传零遥测，内置公开批发价快照做基准真值。
 
@@ -8,7 +8,7 @@
 
 小餐饮店/食堂的采购成本核算普遍停留在"老板记忆 + Excel 手工表"：进货价每天变、毛料换净料凭经验、一道菜到底挣多少钱没人算得清。
 
-实测价格波动数据（公开批发价，抓取日期 2026-10-14）：大白菜均价 2026-08-06 = 0.55 元/斤 → 2026-09-06 = 0.53 元/斤 → 2026-10-06 = 0.40 元/斤（两月 **−27%**）。同类菜品两个月内成本波动可达两成以上，手工 Excel 既不会感知、更不会重算受影响菜品。
+实测价格波动数据（公开批发价，快照已入库，抓取日期 2026-10-15）：大白菜均价 2026-08-06 = 0.55 元/斤 → 2026-09-06 = 0.53 元/斤 → 2026-10-06 = 0.40 元/斤（两月 **−27%**）。同类菜品两个月内成本波动可达两成以上，手工 Excel 既不会感知、更不会重算受影响菜品。（逐份快照的抓取日期与 sha256 见 [data/snapshots/README.md](data/snapshots/README.md)。）
 
 **Excel 和聊天给不了的**：Excel 不会自动净料换算、不会在两期价格快照间自动重算受影响菜品并出预警清单；LLM 聊天给不了持久库、确定口径与可复现基准。
 
@@ -55,21 +55,35 @@ python tools/gen_samples.py
 # 3. 端到端核算（退出码 1 = 有异常行，属明示语义）
 rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json
 
-# 4. 导出报告（人读 Markdown + 机读 XLSX）
+# 4. 价格波动预警（两期真实快照，已随仓库入库；退出码 1 = 有异常行）
+rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json --with-alert --snapshots data/snapshots/xinfadi-2026-08-06.json data/snapshots/xinfadi-2026-10-06.json
+
+# 5. 导出报告（人读 Markdown + 机读 XLSX）
 rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json --report out/report
 
-# 5. 校验输入数据
+# 6. 校验输入数据
 rcc check --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json
 
-# 6. 跑内置基准
+# 7. 跑内置基准
 rcc bench
 
-# 7. 自检
+# 8. 自检
 rcc selftest
 
-# 8. 桌面界面（需额外安装 gui extra）
+# 9. 桌面界面（需额外安装 gui extra）
 python -m pip install -e ".[gui]"
 rcc gui
+```
+
+### 快照复核（离线，数据留档可复验）
+
+```bash
+# 重算 sha256 并与台账逐项核对（不联网）
+python tools/fetch_snapshots.py --check
+# 阳性/阴性对照：篡改必被检出（不联网）
+python tools/fetch_snapshots.py --selftest
+# 重新抓取三个数据日并与留档件逐字节比对（联网；验证跨抓取字节稳定）
+python tools/fetch_snapshots.py --refetch-check
 ```
 
 ## 评测
@@ -94,7 +108,7 @@ data/        数据资产（README 依据查证 / rules 参数包 / samples 样�
 src/rcc/     唯一包（cli / model / rules / io / engine / alert / report / gui / packaging）
 benchmark/   基准套件（runner + cases 对账语义单一实现源）
 tools/       生成器与门禁（gen_params / gen_samples / check_literals / audit_desensitize / detrng）
-tests/       unit / guards / integration / benchmark / gui（138 项，双解释器 3.8 与 3.12 全绿）
+tests/       unit / guards / integration / benchmark / gui（149 项，双解释器 3.8 与 3.12 全绿）
 ```
 
 ## 限制

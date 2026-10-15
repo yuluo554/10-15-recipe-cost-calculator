@@ -1,0 +1,105 @@
+{
+  "entries": [
+    {
+      "captured_date": "2026-10-15",
+      "categories": [
+        {
+          "count": 134,
+          "id": "1186",
+          "name": "蔬菜"
+        },
+        {
+          "count": 81,
+          "id": "1187",
+          "name": "水果"
+        },
+        {
+          "count": 140,
+          "id": "1189",
+          "name": "肉禽蛋"
+        },
+        {
+          "count": 112,
+          "id": "1190",
+          "name": "水产"
+        }
+      ],
+      "data_date": "2026-08-06",
+      "name": "xinfadi-2026-08-06",
+      "record_count": 467,
+      "response_file": "xinfadi-2026-08-06.json",
+      "sha256": "c13afc50e0ff229cca8a7f2edf3582c0ad2c07df026a6ab4cb78221fa90bf74c",
+      "unit": "斤",
+      "url": "http://www.xinfadi.com.cn/getPriceData.html"
+    },
+    {
+      "captured_date": "2026-10-15",
+      "categories": [
+        {
+          "count": 104,
+          "id": "1186",
+          "name": "蔬菜"
+        },
+        {
+          "count": 83,
+          "id": "1187",
+          "name": "水果"
+        },
+        {
+          "count": 140,
+          "id": "1189",
+          "name": "肉禽蛋"
+        },
+        {
+          "count": 0,
+          "id": "1190",
+          "name": "水产"
+        }
+      ],
+      "data_date": "2026-09-06",
+      "name": "xinfadi-2026-09-06",
+      "record_count": 327,
+      "response_file": "xinfadi-2026-09-06.json",
+      "sha256": "e244747a30cc23ab8976790c3a2ba556eaebaf818959dd1bc2174c6baec86eab",
+      "unit": "斤",
+      "url": "http://www.xinfadi.com.cn/getPriceData.html"
+    },
+    {
+      "captured_date": "2026-10-15",
+      "categories": [
+        {
+          "count": 133,
+          "id": "1186",
+          "name": "蔬菜"
+        },
+        {
+          "count": 87,
+          "id": "1187",
+          "name": "水果"
+        },
+        {
+          "count": 141,
+          "id": "1189",
+          "name": "肉禽蛋"
+        },
+        {
+          "count": 113,
+          "id": "1190",
+          "name": "水产"
+        }
+      ],
+      "data_date": "2026-10-06",
+      "name": "xinfadi-2026-10-06",
+      "record_count": 474,
+      "response_file": "xinfadi-2026-10-06.json",
+      "sha256": "69d89e852708037818dc44b7e0f374c7c605654c9ee20791ce69880b8132c8d6",
+      "unit": "斤",
+      "url": "http://www.xinfadi.com.cn/getPriceData.html"
+    }
+  ],
+  "entry_count": 3,
+  "generated_by": "tools/fetch_snapshots.py",
+  "note": "本文件为抓取器产物（禁手改）；快照原始响应件只增不改，sha256 为位级留档判据。",
+  "schema_version": "1",
+  "source": "新发地批发价格接口（公开批发价）"
+}

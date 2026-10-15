@@ -115,11 +115,22 @@ def compute_pricing(cards, pricing_params):
 
 
 def compute_alert(cards, old_snapshot, new_snapshot, alert_params, cost_params):
-    """价格波动预警：F5 涨跌幅 → 受影响菜品重算 → 按涨跌幅降序。"""
+    """价格波动预警：F5 涨跌幅 → 受影响菜品重算 → 按涨跌幅降序。
+
+    **两期必须是可区分的不同数据日**（M1 实测加）：数据日相同即"两期退化成同一期"，
+    此时涨跌幅全为 0 却会以"无异常"的面貌呈现——这正是把 `pubDateStartTime` 写成
+    `startDate` 时的静默故障形态（见 data/README §一之二）。故此处显式拒绝，
+    交 CLI 转成用法错误（exit 2），不静默产出无意义的"全平"结果。
+    """
     entry = alert_params.get("threshold") or {}
     if "value" not in entry:
         raise formulas.FormulaError("参数包缺少波动预警阈值（需显式提供）")
     threshold = to_decimal(entry["value"])
+
+    if old_snapshot["date"] == new_snapshot["date"]:
+        raise ValueError(
+            "两期快照数据日相同（%s）——对比退化成同一期；"
+            "请给出不同数据日的快照（旧→新）" % old_snapshot["date"])
 
     changes = alert_mod.diff_prices(old_snapshot["prices"], new_snapshot["prices"])
     impacted = alert_mod.impacted_dishes(cards, changes, old_snapshot, new_snapshot,
@@ -131,9 +142,13 @@ def compute_alert(cards, old_snapshot, new_snapshot, alert_params, cost_params):
         "flagged": flagged,
         "threshold": quantize_rate(threshold),
         "threshold_source": entry.get("source"),
-        "old_snapshot": {"date": old_snapshot["date"], "source": old_snapshot["source"],
+        "old_snapshot": {"date": old_snapshot["date"],
+                         "captured_date": old_snapshot.get("captured_date"),
+                         "source": old_snapshot["source"],
                          "sha256": old_snapshot["sha256"]},
-        "new_snapshot": {"date": new_snapshot["date"], "source": new_snapshot["source"],
+        "new_snapshot": {"date": new_snapshot["date"],
+                         "captured_date": new_snapshot.get("captured_date"),
+                         "source": new_snapshot["source"],
                          "sha256": new_snapshot["sha256"]},
     }
 
