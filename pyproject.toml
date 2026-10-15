@@ -42,10 +42,17 @@ rcc = "rcc.cli:main"
 Homepage = "https://github.com/yuluo554/10-15-recipe-cost-calculator"
 
 [tool.setuptools]
-package-dir = { "" = "src" }
+# ``benchmark/`` 是仓库顶层的第二个包（不在 src/ 下）：基准套件由 ``rcc bench``
+# 通过 ``from benchmark import runner`` 导入，因此它**必须真的被装上**——只声明
+# ``where = ["src"]`` 时，源码态在仓库根跑 ``python -m rcc.cli bench`` 能过
+# （CWD 在 sys.path 上），冻结态也能过（PyInstaller 显式收了它），**只有装好的
+# 控制台脚本 ``rcc bench`` 会 ModuleNotFoundError**（M6 干净环境验证抓出）。
+# 故显式给出 benchmark 的 package-dir 映射，并同时纳入 find。
+package-dir = { "" = "src", "benchmark" = "benchmark" }
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["rcc*", "benchmark*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

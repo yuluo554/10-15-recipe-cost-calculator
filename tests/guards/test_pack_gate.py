@@ -411,3 +411,113 @@ def test_dev_extra_covers_test_dependencies(repo_root):
     body = _extras_block(_pyproject_text(repo_root), "dev")
     for package in ("pytest", "pyyaml"):
         assert package in body, "dev extra 缺 %s（干净环境会硬失败）" % package
+
+
+# ------------------------------------------ 安装面必须覆盖顶层 benchmark 包
+
+def _package_dir_map(text):
+    """``[tool.setuptools] package-dir`` 的 ``{包前缀: 磁盘根}`` 映射。"""
+    section = text[text.index("[tool.setuptools]"):].split("[tool.pytest")[0]
+    line = [ln for ln in section.splitlines() if ln.strip().startswith("package-dir")][0]
+    body = line.split("=", 1)[1].strip()
+    mapping = {}
+    for item in body.strip("{}").split(","):
+        if "=" not in item:
+            continue
+        key, _, value = item.partition("=")
+        mapping[key.strip().strip('"').strip("'")] = value.strip().strip('"').strip("'")
+    return mapping
+
+
+def _packages_find_where(text):
+    """``[tool.setuptools.packages.find] where`` 的根列表。"""
+    section = text[text.index("packages.find"):].split("[tool.pytest")[0]
+    line = [ln for ln in section.splitlines() if ln.strip().startswith("where")][0]
+    body = line.split("=", 1)[1].strip().strip("[]")
+    return [part.strip().strip('"').strip("'") for part in body.split(",") if part.strip()]
+
+
+def _mapped_package_dir(repo_root, mapping, package):
+    """按 setuptools ``package-dir`` 语义把包名翻成磁盘目录。
+
+    取**最长匹配前缀键** ``k``（``k == ""``、``package == k`` 或
+    ``package.startswith(k + ".")``），再按三种情形定余段：
+
+    - ``k == ""``（默认根）→ 余段 = 整个包名（``{"": "src"}`` + ``rcc`` → ``src/rcc``）；
+    - ``k == package``（精确键）→ 余段 = 空（取值**就是**目录本身：
+      ``{"benchmark": "benchmark"}`` → ``benchmark``，再拼包名会得到不存在的
+      ``benchmark/benchmark``）；
+    - 前缀键 → 余段 = 包名去掉 ``k.`` 的部分。
+    """
+    best = None
+    for key in mapping:
+        if key == "" or package == key or package.startswith(key + "."):
+            if best is None or len(key) > len(best):
+                best = key
+
+    root = mapping.get(best if best is not None else "", ".")
+    if best in (None, ""):
+        remainder = package
+    elif package == best:
+        remainder = ""
+    else:
+        remainder = package[len(best) + 1:]
+
+    parts = [] if root in ("", ".") else [root]
+    if remainder:
+        parts.append(remainder.replace(".", os.sep))
+    return os.path.join(repo_root, *parts) if parts else repo_root
+
+
+def test_pyproject_package_mapping_actually_resolves(repo_root):
+    """``benchmark`` 必须**真能被安装面解析到存在的目录**，且不靠 CWD。
+
+    M6 干净环境验证抓出的真实缺陷：原配置只声明 ``where = ["src"]`` + 默认根
+    ``src``，于是仓库顶层的 ``benchmark/`` **根本不进安装面**。它只在三种运行方式
+    里的一种会挂：
+
+    - 源码态在仓库根 ``python -m rcc.cli bench`` → CWD 在 ``sys.path`` 上，**能过**；
+    - 冻结态 ``rcc.exe bench`` → PyInstaller 的 hiddenimports 显式收了它，**能过**；
+    - **装好的控制台脚本 ``rcc bench``（README 快速开始第 7 步）→ ModuleNotFoundError**。
+
+    **判据为什么必须落在"解析结果"上**：M6 修这个缺陷时的第一版配置
+    （``where = ["src", "."]``）**读起来是对的**，但默认根 ``src`` 会把
+    ``benchmark`` 映射到不存在的 ``src/benchmark``，安装当场失败。只看
+    "pyproject 里出现了 benchmark 这个词"是抓不住的（第一版就含它）。
+    故这里复算 package-dir 映射 + find 的 where 根，断言：
+    ① ``benchmark`` 在两个 where 根下之一能被发现；② 映射后的目录**真存在**。
+    """
+    text = _pyproject_text(repo_root)
+    mapping = _package_dir_map(text)
+    wheres = _packages_find_where(text)
+
+    # ① 发现：benchmark/ 必须在某个 where 根下（仓库根 "." 才行）
+    discovered = None
+    for root in wheres:
+        candidate = os.path.join(repo_root, root.replace("/", os.sep), "benchmark")
+        if os.path.isdir(candidate):
+            discovered = candidate
+    assert discovered, (
+        "benchmark/ 不在任何 packages.find 的 where 根下（顶层包不会进安装面）：%s" % wheres)
+
+    # ② 映射：按 package-dir 语义解析到的目录必须存在（第一版配置就卡在这里）
+    resolved = _mapped_package_dir(repo_root, mapping, "benchmark")
+    assert os.path.isdir(resolved), (
+        "package-dir 把 benchmark 映射到不存在的目录 %s（安装会失败）" % resolved)
+    assert os.path.join(repo_root, "benchmark", "__init__.py") == \
+        os.path.join(resolved, "__init__.py"), (
+        "解析到的 benchmark 目录不是仓库顶层那份（映射指错了地方）")
+
+
+def test_package_mapping_guard_is_not_vacuous(repo_root, tmp_path):
+    """**机制探活**：M6 第一版那个"看着对"的坏配置必须被判红。"""
+    bad = ('[tool.setuptools]\n'
+           'package-dir = { "" = "src" }\n'
+           '\n'
+           '[tool.setuptools.packages.find]\n'
+           'where = ["src", "."]\n'
+           'include = ["rcc*", "benchmark*"]\n')
+    mapping = _package_dir_map(bad)
+    resolved = _mapped_package_dir(repo_root, mapping, "benchmark")
+    assert not os.path.isdir(resolved), (
+        "探活失效：坏配置竟被解析到一个存在的目录（%s）" % resolved)
