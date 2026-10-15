@@ -1,0 +1,245 @@
+{
+  "cases": [
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:ok",
+        "cost:醋溜白菜=2.12"
+      ],
+      "form": "single_food",
+      "id": "cc-single-food",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜"
+        ],
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:ok",
+        "cost:醋溜白菜=3.23"
+      ],
+      "form": "multi_food",
+      "id": "cc-multi-food",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1.5\"\n        },\n        {\n          \"food\": \"土豆\",\n          \"qty\": \"0.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜"
+        ],
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:ok",
+        "card:土豆丝:ok",
+        "cost:醋溜白菜=2.12",
+        "cost:土豆丝=2.22"
+      ],
+      "form": "multi_dish",
+      "id": "cc-two-dishes",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    },\n    {\n      \"items\": [\n        {\n          \"food\": \"土豆\",\n          \"qty\": \"1\"\n        }\n      ],\n      \"name\": \"土豆丝\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜",
+          "土豆丝"
+        ],
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:ok",
+        "cost:醋溜白菜=1.11"
+      ],
+      "form": "qty_zero",
+      "id": "cc-qty-zero",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"0\"\n        },\n        {\n          \"food\": \"土豆\",\n          \"qty\": \"0.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜"
+        ],
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:ok",
+        "cost:醋溜白菜=1.80"
+      ],
+      "form": "yield_rate_one",
+      "id": "cc-yield-rate-one",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜"
+        ],
+        "params_overrides": {
+          "yield_rates": {
+            "大白菜": {
+              "value": "1"
+            }
+          }
+        },
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:ok",
+        "cost:醋溜白菜=180.00"
+      ],
+      "form": "yield_rate_tiny",
+      "id": "cc-yield-rate-tiny",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜"
+        ],
+        "params_overrides": {
+          "yield_rates": {
+            "大白菜": {
+              "value": "0.01"
+            }
+          }
+        },
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:excluded",
+        "card:清炒时蔬:ok",
+        "cost:醋溜白菜=excluded",
+        "cost:清炒时蔬=1.11",
+        "issue:yield_rate_out_of_range:菜品「醋溜白菜」·食材「大白菜」"
+      ],
+      "form": "yield_rate_out_of_range",
+      "id": "cc-yield-out-of-range",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1.5\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    },\n    {\n      \"items\": [\n        {\n          \"food\": \"土豆\",\n          \"qty\": \"0.5\"\n        }\n      ],\n      \"name\": \"清炒时蔬\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜",
+          "清炒时蔬"
+        ],
+        "params_overrides": {
+          "yield_rates": {
+            "大白菜": {
+              "value": "1.5"
+            }
+          }
+        },
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:ok",
+        "card:醋溜白菜:excluded",
+        "card:清炒时蔬:ok",
+        "cost:醋溜白菜=excluded",
+        "cost:清炒时蔬=1.11",
+        "issue:qty_invalid:菜品「醋溜白菜」·食材「大白菜」"
+      ],
+      "form": "qty_invalid",
+      "id": "cc-qty-negative",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"-1\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    },\n    {\n      \"items\": [\n        {\n          \"food\": \"土豆\",\n          \"qty\": \"0.5\"\n        }\n      ],\n      \"name\": \"清炒时蔬\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "observe_costs": [
+          "醋溜白菜",
+          "清炒时蔬"
+        ],
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "no_usable_dishes",
+      "id": "cc-all-dishes-excluded",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"-1\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    },\n    {\n      \"items\": [\n        {\n          \"food\": \"土豆\",\n          \"qty\": \"-2\"\n        }\n      ],\n      \"name\": \"土豆丝\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "form_bom_empty_dishes",
+      "id": "cc-bom-empty-dishes",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [],\n  \"schema_version\": \"1\"\n}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "form_bom_missing_dishes",
+      "id": "cc-bom-missing-dishes",
+      "input": {
+        "bom_json": "{\"schema_version\": \"1\"}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "form_bom_dish_missing_name",
+      "id": "cc-bom-dish-missing-name",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1\"\n        }\n      ]\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "form_bom_unknown_food",
+      "id": "cc-bom-unknown-food",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"并不存在的食材\",\n          \"qty\": \"1\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,0\n2026-10-01,土豆,蔬菜,10,斤,2.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "missing_yield_rate_entry",
+      "id": "cc-missing-yield-rate-entry",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"芥蓝\",\n          \"qty\": \"1\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,芥蓝,蔬菜,10,斤,3.00,0\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "pipeline:failed"
+      ],
+      "form": "no_usable_rows",
+      "id": "cc-purchases-no-usable-rows",
+      "input": {
+        "bom_json": "{\n  \"dishes\": [\n    {\n      \"items\": [\n        {\n          \"food\": \"大白菜\",\n          \"qty\": \"1\"\n        }\n      ],\n      \"name\": \"醋溜白菜\"\n    }\n  ],\n  \"schema_version\": \"1\"\n}\n",
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,,蔬菜,10,斤,1.20,12.00\n"
+      }
+    }
+  ],
+  "generated_by": "tools/gen_truth.py",
+  "note": "本文件为生成器冻结产物，禁止手改。只存**输入 + 期望键**；观测由 benchmark/cases.py 在运行时实算。",
+  "schema_version": "1",
+  "suite": "costcard"
+}

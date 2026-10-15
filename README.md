@@ -51,9 +51,10 @@ flowchart LR
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
 
-# 2. 生成参数包与样例数据（冻结产物）
+# 2. 生成参数包、样例数据与真值库（冻结产物）
 python tools/gen_params.py
 python tools/gen_samples.py
+python tools/gen_truth.py
 
 # 3. 端到端核算（退出码 1 = 有异常行，属明示语义）
 rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json
@@ -76,6 +77,15 @@ rcc selftest
 # 9. 桌面界面（需额外安装 gui extra）
 python -m pip install -e ".[gui]"
 rcc gui
+```
+
+### 冻结产物复核（离线，可复验）
+
+```bash
+# 参数包 / 样例 / 真值库：重生成后与入库件逐字节比对（手改即被检出）
+python tools/gen_params.py --check       # FROZEN_PARAMS_OK
+python tools/gen_samples.py --check      # FROZEN_SAMPLES_OK
+python tools/gen_truth.py --check        # FROZEN_TRUTH_OK
 ```
 
 ### 快照复核（离线，数据留档可复验）
@@ -135,25 +145,33 @@ CSV，**UTF-8 编码**（带 BOM 亦可，Excel「另存为 CSV UTF-8」即此�
 
 基准套件分两层（样本驱动 + 规则驱动），指标以末态实测回填。门槛随 `data/truth/manifest.json` 下发（**数据不是代码**），基准层只读，缺失即报配置错误。
 
-| 套件 | 层 | 证明什么 | 指标 |
-|---|---|---|---|
-| `import` | 样本驱动 | 进货单解析在这些样本上对 | ⬜ M4 回填 |
-| `costcard` | 样本驱动 | 成本卡端到端在这些样本上对 | ⬜ M4 回填 |
-| `alert` | 样本驱动 | 预警清单与排序在这些样本上对 | ⬜ M4 回填 |
-| `boundary` | **规则驱动** | 引擎在**所有**有限端点上对（不读真值库） | ✅ 端点全通过 |
-| `reconcile` | **双向对账** | 公式推导端点 vs 穷举扫描恢复点互验 | ✅ 两路径一致 |
+**真值库只存输入与期望，观测在运行时实算**：`data/truth/*.json` 由 `tools/gen_truth.py` 冻结产出（禁手改，配 `--check` 位级守门），基准把每条用例的内联输入**真喂引擎**后取出实算结论，再与冻结期望对账。若把观测也冻进真值库，评测就退化成"比对两个冻结字典"——引擎坏掉也照样全绿。
+
+| 套件 | 层 | 证明什么 | 形态总数 / 采样 | 指标 |
+|---|---|---|---|---|
+| `import` | 样本驱动 | 进货单解析在这些样本上对 | 18 / 18 | ✅ 19 用例全过 |
+| `costcard` | 样本驱动 | 成本卡端到端在这些样本上对 | 15 / 15 | ✅ 15 用例全过 |
+| `alert` | 样本驱动 | 预警清单与排序在这些样本上对 | 7 / 7 | ✅ 7 用例全过 |
+| `boundary` | **规则驱动** | 引擎在**所有**有限端点上对（不读真值库） | 29 端点 | ✅ 全通过 |
+| `reconcile` | **双向对账** | 公式推导端点 vs 穷举扫描恢复点互验 | 4 项 | ✅ 两路径一致 |
+
+**覆盖度按「总数 / 采样数」双登记**（只写分子即假覆盖）：分母把 `csv_import` / `pipeline` 的 `ISSUE_*` 常量集**运行时反射**出来——**新增一个异常代码而没配用例，生成器直接报错**，覆盖率不会悄悄虚高。
 
 **未启用的套件不冒充通过**：分母为 0 时标记 `not_enabled` 并退出码 1，不记为"达标"。
+
+**探活（阴性对照）**：每套件都注入过缺陷并确认基准**报未达标**——F1 方向反了（B2 红）、量化方向反了（B4 红）、排序反了（B3 红）、篡改真值期望（B1/B2/B3 红）、新增 `ISSUE_*` 代码而无用例（生成器报错）、删真值库（报未启用 + exit 1）、把观测冻进真值库（G-TRUTH-FROZEN 红）、时长门槛登记了却不判定（时长测试红）。**八条全红**。
+
+**判定门槛的三条诚实口径**：① 门槛随 manifest 下发，缺失即 exit 2、不回落代码默认值；② `max_duration_seconds` **真参与判定**（不是登记了没人看）；③ 误报率在样本驱动层是**实测值**，规则驱动层结构上不可测、故由 `measures_false_positive` **显式声明未测**（不拿恒 0 冒充达标）。
 
 ## 目录结构
 
 ```
 plan/        计划与留档（00 总览 / 01 题目 / 02 算法与口径 / 03 基准设计 / 04 测试验收 / 05 发布交付 / 06 架构选型）
-data/        数据资产（README 依据查证 / rules 参数包 / samples 样例 / snapshots 快照 / truth 真值库）
+data/        数据资产（README 依据查证 / rules 参数包 / samples 样例 / snapshots 快照 / truth 真值库 + manifest）
 src/rcc/     唯一包（cli / model / rules / io / engine / alert / report / gui / packaging）
-benchmark/   基准套件（runner + cases 对账语义单一实现源）
-tools/       生成器与门禁（gen_params / gen_samples / check_literals / audit_desensitize / detrng）
-tests/       unit / guards / integration / benchmark / gui（255 项，双解释器 3.8 与 3.12 全绿）
+benchmark/   基准套件（runner + cases 对账语义单一实现源与活体观测器）
+tools/       生成器与门禁（gen_params / gen_samples / gen_truth / check_literals / audit_desensitize / detrng / fetch_snapshots）
+tests/       unit / guards / integration / benchmark / gui（287 项，双解释器 3.8 与 3.12 全绿）
 ```
 
 ## 限制

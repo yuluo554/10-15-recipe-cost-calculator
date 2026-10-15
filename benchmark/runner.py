@@ -18,15 +18,21 @@
 
 import json
 import os
+import time
 from decimal import Decimal
 
 from . import cases as cases_mod
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MANIFEST_PATH = os.path.join(REPO_ROOT, "data", "truth", "manifest.json")
+TRUTH_DIR = os.path.join(REPO_ROOT, "data", "truth")
+MANIFEST_PATH = os.path.join(TRUTH_DIR, "manifest.json")
 
 # 套件注册表（新增基准必须注册在此，否则 --only 传它走 exit 2 而非静默跳过）
 SUITES = ("import", "costcard", "alert", "boundary", "reconcile")
+
+# 阈值字段（缺一即配置错误——**不取默认值**）
+THRESHOLD_KEYS = ("min_pass_rate", "max_false_positive_rate", "max_duration_seconds",
+                  "measures_false_positive")
 
 
 class UnknownSuite(ValueError):
@@ -45,17 +51,36 @@ def _display_path(path):
         return path
 
 
-def load_thresholds(manifest_path=MANIFEST_PATH):
-    """读验收门槛（数据非代码）。缺失即报配置错误。"""
+def load_manifest(manifest_path=MANIFEST_PATH):
+    """读整份 manifest（门槛 + 覆盖度登记**同一份数据**）。缺失即报配置错误。"""
     if not os.path.isfile(manifest_path):
         raise ConfigError("基准门槛配置缺失: %s（门槛随 manifest 下发，不回落代码默认值）"
                           % _display_path(manifest_path))
     with open(manifest_path, "r", encoding="utf-8") as fh:
         manifest = json.load(fh)
-    thresholds = manifest.get("thresholds")
+    if not isinstance(manifest, dict):
+        raise ConfigError("manifest 根节点必须是对象")
+    return manifest
+
+
+def load_thresholds(manifest_path=MANIFEST_PATH):
+    """读验收门槛（数据非代码）。缺失即报配置错误。"""
+    thresholds = load_manifest(manifest_path).get("thresholds")
     if not isinstance(thresholds, dict):
         raise ConfigError("manifest 缺少 thresholds 段")
     return thresholds
+
+
+def load_coverage(manifest_path=MANIFEST_PATH):
+    """读覆盖度双登记（**分母形态总数 + 分子采样数**）。
+
+    只写分子即假覆盖（plan/03 §四），故本函数要求两栏都在——缺任一栏即配置错误，
+    不静默当作 0。
+    """
+    coverage = load_manifest(manifest_path).get("coverage")
+    if not isinstance(coverage, dict):
+        raise ConfigError("manifest 缺少 coverage 段（覆盖度双登记）")
+    return coverage
 
 
 def _check_thresholds(thresholds, suite):
@@ -63,7 +88,7 @@ def _check_thresholds(thresholds, suite):
     entry = thresholds.get(suite)
     if not isinstance(entry, dict):
         raise ConfigError("manifest 缺少套件 %r 的门槛项" % suite)
-    for key in ("min_pass_rate", "max_false_positive_rate"):
+    for key in THRESHOLD_KEYS:
         if key not in entry:
             raise ConfigError("套件 %r 门槛缺少 %r" % (suite, key))
     return entry
@@ -291,14 +316,18 @@ def suite_reconcile(params):
 
 # ------------------------------------------------------- 样本驱动层 B1/B2/B3
 
-def _sample_suite(suite, truth_path):
-    """样本驱动套件：读冻结真值库对账。
+def _sample_suite(suite, truth_path, workdir):
+    """样本驱动套件：读冻结真值库，**把每条用例的输入喂给真引擎活体观测**后对账。
 
-    真值库尚未生成（M4 前）时走 ``not_enabled`` 分支——**不冒充通过**。
+    真值库只存**输入 + 期望**（不含 ``observed``）——若把观测也冻进库，评测就退化
+    成"比对两个冻结字典"，**引擎坏掉也照样全绿**（本项目最忌的假门）。故观测一律
+    由 ``cases.observe_*`` 在运行时实算。
+
+    真值库不存在或为空 → 走 ``not_enabled`` 分支——**不冒充通过**。
     """
     if not os.path.isfile(truth_path):
         return _suite_not_enabled(
-            suite, "该类用例未生成（真值库待 M4 产出）")
+            suite, "该类用例未生成（真值库缺失，请跑 tools/gen_truth.py）")
     with open(truth_path, "r", encoding="utf-8") as fh:
         payload = json.load(fh)
     records = payload.get("cases") if isinstance(payload, dict) else payload
@@ -308,31 +337,46 @@ def _sample_suite(suite, truth_path):
     total = len(records)
     failed = 0
     failures = []
+    observed_total = 0
+    unexpected_total = 0
     for record in records:
-        expected = cases_mod.observed_nonpass(record.get("expect", {}))
-        observed = cases_mod.observed_nonpass(record.get("observed", {}))
-        comparison = cases_mod.compare_nonpass(expected, observed)
-        if not comparison["match"]:
-            failed += 1
-            failures.append("用例 %s 不一致: 漏 %s / 多 %s"
-                            % (record.get("id"), comparison["missing"],
-                               comparison["unexpected"]))
+        comparison = cases_mod.evaluate_case(suite, record, workdir)
+        observed_total += comparison["observed_count"]
+        unexpected_total += comparison["unexpected_count"]
+        if comparison["match"]:
+            continue
+        failed += 1
+        detail = "用例 %s 不一致: 漏 %s / 多 %s" % (
+            comparison.get("id"), comparison["missing"], comparison["unexpected"])
+        if comparison.get("error"):
+            detail += "（观测异常 %s）" % comparison["error"]
+        failures.append(detail)
+    # 误报率是**实测值**（观测多出的结论键占比），不是写死的 0——
+    # 写死的指标与门槛比较是恒真假门：门槛就算配 0 也永远满足。
+    false_positive_rate = (Decimal(unexpected_total) / Decimal(observed_total)
+                           if observed_total else Decimal(0))
     return {
         "suite": suite,
         "not_enabled": False,
-        "notes": "样本驱动：真值库全量重算对账",
+        "notes": "样本驱动：真值库输入实喂引擎，活体观测对账（非比对冻结观测）",
         "total": total,
         "passed": total - failed,
         "failed": failed,
         "pass_rate": Decimal(total - failed) / Decimal(total) if total else Decimal(0),
-        "false_positive_rate": Decimal(0),
+        "false_positive_rate": false_positive_rate,
         "failures": failures,
         "ok": failed == 0 and total > 0,
     }
 
 
-def run_suites(only=None, manifest_path=MANIFEST_PATH, params=None):
-    """跑套件。``only`` 为 ``None``/空 时跑全部。"""
+def run_suites(only=None, manifest_path=MANIFEST_PATH, params=None, workdir=None):
+    """跑套件。``only`` 为 ``None``/空 时跑全部。
+
+    **时长门槛也判定**（``max_duration_seconds`` 随 manifest 下发）：原先该字段
+    既未校验也未使用——登记在门槛里却没人看，等于"登记了却静默不判"。现按
+    "实测单套件耗时 ≤ 门槛"判定，超时即该套件未达标（exit 1），并给出实测值
+    供读者判断是机器慢还是基准退化了。
+    """
     only = list(only or [])
     for name in only:
         if name not in SUITES:
@@ -340,34 +384,71 @@ def run_suites(only=None, manifest_path=MANIFEST_PATH, params=None):
                                % (name, ", ".join(SUITES)))
 
     thresholds = load_thresholds(manifest_path)
+    coverage = load_coverage(manifest_path)
     if params is None:
         from rcc.rules.params import load_params
 
         params = load_params()
 
+    if workdir is None:
+        # 用例的内联输入落在**仓库树外**（仓库内 out/ 属忽略区，往那里写会
+        # "看着成功其实没写"）。自建的临时目录用完即清，不留给读者收拾。
+        import shutil
+        import tempfile
+
+        workdir = tempfile.mkdtemp(prefix="rcc-bench-")
+        owns_workdir = True
+    else:
+        owns_workdir = False
+
+    try:
+        return _run_registered(only, thresholds, coverage, params, workdir)
+    finally:
+        if owns_workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _run_registered(only, thresholds, coverage, params, workdir):
+    """按注册顺序跑选定套件，逐套件计时并判定门槛。"""
     suites = []
     for name in SUITES:
         if only and name not in only:
             continue
+        started = time.monotonic()
         if name == "boundary":
             result = suite_boundary(params)
         elif name == "reconcile":
             result = suite_reconcile(params)
         else:
-            truth_path = os.path.join(REPO_ROOT, "data", "truth", "%s.json" % name)
-            result = _sample_suite(name, truth_path)
+            truth_path = os.path.join(TRUTH_DIR, "%s.json" % name)
+            result = _sample_suite(name, truth_path, workdir)
+        duration = Decimal(repr(round(time.monotonic() - started, 6)))
+        result["duration_seconds"] = duration
 
-        # 门槛判定只对**实际跑了的**套件做（--suite 部分运行不判定未测指标）
+        # 门槛判定只对**实际跑了的**套件做（--only 部分运行不判定未测指标）
         if result.get("not_enabled"):
             result["threshold_ok"] = False
             result["ok"] = False
         else:
             entry = _check_thresholds(thresholds, name)
             min_rate = Decimal(str(entry["min_pass_rate"]))
-            max_fp = Decimal(str(entry["max_false_positive_rate"]))
-            result["threshold_ok"] = (result["pass_rate"] >= min_rate
-                                      and result["false_positive_rate"] <= max_fp)
+            max_duration = Decimal(str(entry["max_duration_seconds"]))
+            # 误报率只在**该套件真的测它**时才作判定：规则驱动层（B4/B5）没有
+            # "观测键"通道，其误报率结构上不可测——若仍拿一个恒 0 去比门槛，
+            # 那个比较是恒真的假门。故由 manifest 显式声明 `measures_false_positive`，
+            # 未测即**不冒充"误报率达标"**（登记而非沉默）。
+            measures_fp = bool(entry["measures_false_positive"])
+            if measures_fp:
+                max_fp = Decimal(str(entry["max_false_positive_rate"]))
+                fp_ok = result["false_positive_rate"] <= max_fp
+            else:
+                fp_ok = True
+            result["false_positive_measured"] = measures_fp
+            result["duration_ok"] = duration <= max_duration
+            result["threshold_ok"] = (result["pass_rate"] >= min_rate and fp_ok
+                                      and result["duration_ok"])
             result["ok"] = bool(result["ok"] and result["threshold_ok"])
+        result["coverage"] = coverage.get(name)
         suites.append(result)
 
     passed = all(suite["ok"] for suite in suites) if suites else False
@@ -376,6 +457,7 @@ def run_suites(only=None, manifest_path=MANIFEST_PATH, params=None):
         "passed": passed,
         "partial": bool(only),
         "not_enabled": [s["suite"] for s in suites if s.get("not_enabled")],
+        "coverage": coverage,
     }
 
 
@@ -386,10 +468,18 @@ def render_text(result):
         if suite.get("not_enabled"):
             lines.append("[未启用] %s — %s" % (suite["suite"], suite["notes"]))
             continue
-        lines.append("[%s] %s  通过 %d/%d  达标率 %s  误报率 %s  %s" % (
+        duration = suite.get("duration_seconds")
+        timing = "" if duration is None else "  耗时 %ss%s" % (
+            duration, "" if suite.get("duration_ok", True) else "（超时长门槛）")
+        lines.append("[%s] %s  通过 %d/%d  达标率 %s  误报率 %s%s  %s" % (
             "达标" if suite["ok"] else "未达标",
             suite["suite"], suite["passed"], suite["total"],
-            suite["pass_rate"], suite["false_positive_rate"], suite["notes"]))
+            suite["pass_rate"], suite["false_positive_rate"], timing, suite["notes"]))
+        coverage = suite.get("coverage")
+        if coverage:
+            lines.append("    覆盖度: 形态 %s 中采样 %s（%s）"
+                         % (coverage.get("forms_total"), coverage.get("forms_sampled"),
+                            coverage.get("declaration")))
         for failure in suite.get("failures", []):
             lines.append("    - %s" % failure)
     if result.get("partial"):

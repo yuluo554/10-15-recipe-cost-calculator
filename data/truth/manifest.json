@@ -1,53 +1,106 @@
 {
-  "schema_version": "1",
-  "generated_by": "tools/gen_truth.py",
-  "note": "本文件为生成器冻结产物，禁止手改。验收门槛随本文件下发（数据非代码）——基准层只读，缺失即配置错误（退出码 2），不得回落代码默认值。",
-  "thresholds": {
-    "import": {
-      "min_pass_rate": "0.95",
-      "max_false_positive_rate": "0.0",
-      "max_duration_seconds": "10"
+  "coverage": {
+    "alert": {
+      "declaration": "价格波动预警（抽样覆盖，非穷举）",
+      "forms_sampled": 7,
+      "forms_total": 7,
+      "sampled_forms": [
+        "down",
+        "flat",
+        "gone",
+        "new",
+        "same_period_rejected",
+        "two_periods_all_statuses",
+        "up"
+      ]
     },
     "costcard": {
-      "min_pass_rate": "0.95",
-      "max_false_positive_rate": "0.0",
-      "max_duration_seconds": "10"
+      "declaration": "成本卡端到端（抽样覆盖，非穷举）",
+      "forms_sampled": 15,
+      "forms_total": 15,
+      "sampled_forms": [
+        "form_bom_dish_missing_name",
+        "form_bom_empty_dishes",
+        "form_bom_missing_dishes",
+        "form_bom_unknown_food",
+        "missing_yield_rate_entry",
+        "multi_dish",
+        "multi_food",
+        "no_usable_dishes",
+        "no_usable_rows",
+        "qty_invalid",
+        "qty_zero",
+        "single_food",
+        "yield_rate_one",
+        "yield_rate_out_of_range",
+        "yield_rate_tiny"
+      ]
     },
+    "import": {
+      "declaration": "进货单导入三态与形态失败（抽样覆盖，非穷举）",
+      "forms_sampled": 18,
+      "forms_total": 18,
+      "sampled_forms": [
+        "amount_not_validated",
+        "blank_lines_tolerated",
+        "duplicate_names_observable",
+        "form_empty_file",
+        "form_header_only",
+        "form_missing_required_column",
+        "form_non_utf8",
+        "form_whitespace_only",
+        "header_whitespace_trimmed",
+        "mapping_uncertain",
+        "negative",
+        "not_numeric",
+        "ok_row",
+        "required_empty",
+        "shuffled_column_order",
+        "structure_unparsable",
+        "unit_unregistered",
+        "utf8_bom_header"
+      ]
+    },
+    "note": "覆盖度按「总数/采样数」双登记——分母来自代码里的 ISSUE_* 常量集（反射得出，做不小），分子是用例实际采样的形态数。"
+  },
+  "generated_by": "tools/gen_truth.py",
+  "note": "本文件为生成器冻结产物，禁止手改。验收门槛随本文件下发（数据非代码）——基准层只读，缺失即配置错误（退出码 2），不得回落代码默认值。覆盖度按「总数/采样数」双登记；只写分子即假覆盖。",
+  "schema_version": "1",
+  "thresholds": {
     "alert": {
-      "min_pass_rate": "0.95",
+      "max_duration_seconds": "10",
       "max_false_positive_rate": "0.0",
-      "max_duration_seconds": "10"
+      "measures_false_positive": true,
+      "min_pass_rate": "0.95"
     },
     "boundary": {
-      "min_pass_rate": "1.0",
+      "max_duration_seconds": "10",
       "max_false_positive_rate": "0.0",
-      "max_duration_seconds": "10"
-    },
-    "reconcile": {
-      "min_pass_rate": "1.0",
-      "max_false_positive_rate": "0.0",
-      "max_duration_seconds": "10"
-    }
-  },
-  "coverage": {
-    "note": "覆盖度按「总数/采样数」双登记；只写分子即假覆盖。M4 实测后回填总数与采样清单。",
-    "import": {
-      "forms_total": 0,
-      "forms_sampled": 0,
-      "sampled_forms": [],
-      "declaration": "抽样覆盖，非逐形态穷举（M4 回填）"
+      "measures_false_positive": false,
+      "min_pass_rate": "1.0"
     },
     "costcard": {
-      "forms_total": 0,
-      "forms_sampled": 0,
-      "sampled_forms": [],
-      "declaration": "抽样覆盖，非逐形态穷举（M4 回填）"
+      "max_duration_seconds": "10",
+      "max_false_positive_rate": "0.0",
+      "measures_false_positive": true,
+      "min_pass_rate": "0.95"
     },
-    "alert": {
-      "forms_total": 0,
-      "forms_sampled": 0,
-      "sampled_forms": [],
-      "declaration": "抽样覆盖，非逐形态穷举（M4 回填）"
+    "import": {
+      "max_duration_seconds": "10",
+      "max_false_positive_rate": "0.0",
+      "measures_false_positive": true,
+      "min_pass_rate": "0.95"
+    },
+    "reconcile": {
+      "max_duration_seconds": "10",
+      "max_false_positive_rate": "0.0",
+      "measures_false_positive": false,
+      "min_pass_rate": "1.0"
     }
+  },
+  "truth_sha256": {
+    "alert": "d1af565118609039067c3fd48e7ce6faa7116ba0f2b06fb09a42718971ad479b",
+    "costcard": "887d9c7f050d0ca952b020393922e7fb14f31ddffa11ad4e3cf639b01caa54c4",
+    "import": "8918456d47229ae12203ba76457d6a12b6dd062a4a0e6df27f7902733959a7ff"
   }
 }

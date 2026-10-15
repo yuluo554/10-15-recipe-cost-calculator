@@ -1,0 +1,220 @@
+{
+  "cases": [
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1"
+      ],
+      "form": "ok_row",
+      "id": "imp-ok-row",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:0",
+        "issue:L2:required_empty:invalid"
+      ],
+      "form": "required_empty",
+      "id": "imp-required-empty",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,,蔬菜,10,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:0",
+        "issue:L2:not_numeric:invalid"
+      ],
+      "form": "not_numeric",
+      "id": "imp-qty-not-numeric",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,abc,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:0",
+        "issue:L2:not_numeric:invalid"
+      ],
+      "form": "not_numeric",
+      "id": "imp-price-not-numeric",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,一元,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:0",
+        "issue:L2:negative:invalid"
+      ],
+      "form": "negative",
+      "id": "imp-negative",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,-2,斤,1.20,-2.40\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1",
+        "issue:L1:mapping_uncertain:unknown"
+      ],
+      "form": "mapping_uncertain",
+      "id": "imp-unknown-column-header-level",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额,备注\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:0",
+        "issue:L2:structure_unparsable:unknown"
+      ],
+      "form": "structure_unparsable",
+      "id": "imp-structure-unparsable",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,莲藕,蔬菜,4,斤,3.50,14.00,备注,多余\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1",
+        "issue:L2:unit_unregistered:unknown"
+      ],
+      "form": "unit_unregistered",
+      "id": "imp-unit-unregistered",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,5,克拉,1.20,6.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:2"
+      ],
+      "form": "duplicate_names_observable",
+      "id": "imp-duplicate-names",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n2026-10-05,大白菜,蔬菜,10,斤,1.60,16.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1"
+      ],
+      "form": "blank_lines_tolerated",
+      "id": "imp-blank-lines-tolerated",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n\n\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1"
+      ],
+      "form": "amount_not_validated",
+      "id": "imp-amount-not-validated",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,不是数字\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1"
+      ],
+      "form": "utf8_bom_header",
+      "id": "imp-bom-header",
+      "input": {
+        "purchases_csv": "﻿日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1"
+      ],
+      "form": "shuffled_column_order",
+      "id": "imp-shuffled-columns",
+      "input": {
+        "purchases_csv": "单价,类别,数量,单位,品名,日期,金额\n1.20,蔬菜,10,斤,大白菜,2026-10-01,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:accepted",
+        "rows:1"
+      ],
+      "form": "header_whitespace_trimmed",
+      "id": "imp-header-whitespace",
+      "input": {
+        "purchases_csv": " 日期 ,品名, 类别 ,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:rejected"
+      ],
+      "form": "form_empty_file",
+      "id": "imp-empty-file",
+      "input": {
+        "purchases_csv": ""
+      }
+    },
+    {
+      "expect_keys": [
+        "form:rejected"
+      ],
+      "form": "form_whitespace_only",
+      "id": "imp-whitespace-only",
+      "input": {
+        "purchases_csv": "\n \n\t\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:rejected"
+      ],
+      "form": "form_header_only",
+      "id": "imp-header-only",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:rejected"
+      ],
+      "form": "form_missing_required_column",
+      "id": "imp-missing-required-column",
+      "input": {
+        "purchases_csv": "日期,品名,类别,单位,单价,金额\n2026-10-01,大白菜,蔬菜,斤,1.20,12.00\n"
+      }
+    },
+    {
+      "expect_keys": [
+        "form:rejected"
+      ],
+      "form": "form_non_utf8",
+      "id": "imp-non-utf8-rejected",
+      "input": {
+        "purchases_csv": "日期,品名,类别,数量,单位,单价,金额\n2026-10-01,大白菜,蔬菜,10,斤,1.20,12.00\n",
+        "purchases_encoding": "gbk"
+      }
+    }
+  ],
+  "generated_by": "tools/gen_truth.py",
+  "note": "本文件为生成器冻结产物，禁止手改。只存**输入 + 期望键**；观测由 benchmark/cases.py 在运行时实算。",
+  "schema_version": "1",
+  "suite": "import"
+}

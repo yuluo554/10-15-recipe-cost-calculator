@@ -97,7 +97,7 @@ def test_bench_unknown_suite_is_usage_error(repo_root):
 
 
 def test_bench_registered_suites_run(repo_root):
-    """已登记套件应可跑（真值库未生成 → 样本驱动套件 not_enabled，退出码 1）。"""
+    """已登记套件应可跑；M4 起五套件全部达标 → 整体退出码 0。"""
     code, out, _err = _run_cli(repo_root, "bench", "--only", "boundary")
     assert code == 0, out
     assert "达标" in out
@@ -106,11 +106,30 @@ def test_bench_registered_suites_run(repo_root):
     assert code == 0, out
 
 
-def test_bench_not_enabled_does_not_fake_pass(repo_root):
-    """**未启用套件不冒充通过**：空分母 → exit 1 + 显式声明。"""
+def test_bench_all_five_suites_pass(repo_root):
+    """M4 DoD：五套件基准达标（真值库已入库，样本驱动层不再 not_enabled）。"""
+    code, out, _err = _run_cli(repo_root, "bench")
+    assert code == 0, out
+    assert "总判: 达标" in out
+    for suite in ("import", "costcard", "alert", "boundary", "reconcile"):
+        assert suite in out, "输出缺套件 %s" % suite
+    assert "未启用" not in out, "真值库已入库，不应再有未启用套件"
+
+
+def test_bench_exit_code_matches_printed_verdict(repo_root):
+    """退出码必须与打印的总判一致（不得"打印未达标、退出码 0"）。"""
+    code, out, _err = _run_cli(repo_root, "bench")
+    verdict_ok = "总判: 达标" in out
+    assert code == (0 if verdict_ok else 1), (
+        "CLI 退出码与打印的总判不一致（退出码语义漂移）:\n%s" % out)
+
+
+def test_bench_reports_coverage_dual_registration(repo_root):
+    """覆盖度双登记（分母 + 分子）必须出现在输出里——只写分子即假覆盖。"""
     code, out, _err = _run_cli(repo_root, "bench", "--only", "import")
-    assert code == 1, "空分母套件应返回 1（不冒充通过），实际 %d\n%s" % (code, out)
-    assert "未启用" in out
+    assert code == 0, out
+    assert "覆盖度" in out, "基准输出未声明覆盖度"
+    assert "形态" in out, "覆盖度未写出分母（形态总数）"
 
 
 def test_selftest_passes_in_source_mode(repo_root):

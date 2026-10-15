@@ -1,0 +1,109 @@
+{
+  "cases": [
+    {
+      "expect_keys": [
+        "status:八爪鱼=down"
+      ],
+      "form": "down",
+      "id": "al-status-down",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-10-06.json",
+        "observe_foods": [
+          "八爪鱼"
+        ],
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json"
+      }
+    },
+    {
+      "expect_keys": [
+        "status:三文鱼肉=flat"
+      ],
+      "form": "flat",
+      "id": "al-status-flat",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-10-06.json",
+        "observe_foods": [
+          "三文鱼肉"
+        ],
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json"
+      }
+    },
+    {
+      "expect_keys": [
+        "status:14号=gone"
+      ],
+      "form": "gone",
+      "id": "al-status-gone",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-10-06.json",
+        "observe_foods": [
+          "14号"
+        ],
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json"
+      }
+    },
+    {
+      "expect_keys": [
+        "status:123沙果=new"
+      ],
+      "form": "new",
+      "id": "al-status-new",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-10-06.json",
+        "observe_foods": [
+          "123沙果"
+        ],
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json"
+      }
+    },
+    {
+      "expect_keys": [
+        "status:L600小吊瓜=up"
+      ],
+      "form": "up",
+      "id": "al-status-up",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-10-06.json",
+        "observe_foods": [
+          "L600小吊瓜"
+        ],
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json"
+      }
+    },
+    {
+      "expect_keys": [
+        "total:439",
+        "order:descending",
+        "flagged:141",
+        "count:down=117",
+        "count:flat=112",
+        "count:gone=37",
+        "count:new=45",
+        "count:up=128"
+      ],
+      "form": "two_periods_all_statuses",
+      "id": "al-summary-order-threshold",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-10-06.json",
+        "observe_summary": true,
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json"
+      }
+    },
+    {
+      "expect_keys": [
+        "guard:same_period:rejected"
+      ],
+      "form": "same_period_rejected",
+      "id": "al-degenerate-same-period",
+      "input": {
+        "new_snapshot": "data/snapshots/xinfadi-2026-08-06.json",
+        "old_snapshot": "data/snapshots/xinfadi-2026-08-06.json",
+        "same_period_guard": true
+      }
+    }
+  ],
+  "generated_by": "tools/gen_truth.py",
+  "note": "本文件为生成器冻结产物，禁止手改。只存**输入 + 期望键**；观测由 benchmark/cases.py 在运行时实算。",
+  "schema_version": "1",
+  "suite": "alert"
+}
