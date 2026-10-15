@@ -156,7 +156,7 @@
 | 清 | 判据 | 结果 |
 |---|---|---|
 | ① 全历史脱敏三扫 0 硬门 | tracked/history/messages 均 HARD 0 | ✅ |
-| ② 历史坏 blob 修净 | `git fsck` 无悬空敏感对象 | ✅ |
+| ② 历史坏 blob 修净 | `git fsck` 无悬空敏感对象 | ✅ **收尾时 `git fsck` 输出为空**。过程中的悬空对象只有**tag 前移产生的旧 tag 对象**（3 个，`--force` 移动留下的），已核查：**全部指向可达提交、body 只含 noreply 邮箱**（即已脱敏的目标形态），无任何敏感内容 → 随后 `git reflog expire --expire-unreachable=now` + `git gc --prune=now` 清掉，`git fsck` 复验为空 |
 | ③ 失败 run 已删 | `gh run list` 无含敏感回显的失败 run | ✅ **无失败 run**——**截至收尾的每一轮 push 事件（含 tag push 与 branch push）均 success**，一条失败记录都没有；且**逐 run 收集日志后核查**：无邮箱形态、无本机用户名、无个人路径签名 → **无需删除任何 run** |
 >
 > **为什么不写具体轮数**：每 push 一次就多一轮 run，写死的数字会立刻过期（本记录撰写期间就发生过一次）。**判据是"有无失败 run"，不是"跑了几轮"**——前者是性质，后者是快照。要核当前轮数用 `gh run list --json databaseId,event,conclusion`。
@@ -210,4 +210,5 @@ plan/05 §七 要求"**以当轮实测为准留档**（两种行为都出现过�
 1. **`rcc bench` 控制台通路挂**（§六）——干净环境验证抓出，已修 + 加门 + CI 补冒烟步骤（K53）；
 2. **`sha256sum -c` 对留档里的空行报 "improperly formatted"**：GNU coreutils 对 checksum 文件中的**空行**（后接下一行）会告警。留档因此去掉空行——**刷屏的校验命令会让读者不再看它的输出**，与"误报会让门禁失效"同一条纪律；
 3. **`--dist-path` 的引入**：M5 纪律把构建产物放在**仓库树外**，而审计器的 dist 模式原本只认仓库内 `dist/`——发布期产物按纪律在树外，故必须支持显式路径，否则"产物扫描"这一步会在正确的纪律下**扫了个空**；
-4. **`gh release download` 必须在仓库目录内跑**：在仓库外的临时目录执行会报 `failed to run git: fatal: not a git repository`——它不是"下载失败"，而是**找不到仓库上下文**（退出码仍为 0，容易误判为成功）。**"命令没报错"与"文件真下下来了"要分开验**（用 `ls` 看字节数为证）。
+4. **`gh release download` 必须在仓库目录内跑**：在仓库外的临时目录执行会报 `failed to run git: fatal: not a git repository`——它不是"下载失败"，而是**找不到仓库上下文**（退出码仍为 0，容易误判为成功）。**"命令没报错"与"文件真下下来了"要分开验**（用 `ls` 看字节数为证）；
+5. **`git tag -f` 前移会留下悬空 tag 对象**：每次前移都产生一个不可达的旧 tag 对象，`git fsck` 会报 `dangling tag`。**它不是污染**（body 只有 noreply、指向可达提交），但"三清"要求 fsck 干净，故收尾用 `reflog expire --expire-unreachable=now` + `gc --prune=now` 清掉。**判别口诀：fsck 报悬空 ≠ 有敏感泄漏，先看对象类型与内容再决定清不清**——把"悬空"一律当污染处理，会在无关对象上浪费一次全仓 gc。
