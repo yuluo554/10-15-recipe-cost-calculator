@@ -47,9 +47,12 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Generate frozen artifacts and verify bit-identical
+        # 共同验收门 = 三个生成器（plan/02 §七）。漏掉 gen_truth 等于真值库
+        # 无人守——它正是基准的期望来源，手改即让评测失效。
         run: |
           python tools/gen_params.py --check
           python tools/gen_samples.py --check
+          python tools/gen_truth.py --check
 
       - name: Zero-literal gate (with selftest)
         run: |
@@ -71,4 +74,4 @@ jobs:
           python -m rcc.cli --version
           python -m rcc.cli selftest
           python -m rcc.cli run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json || test $? -eq 1
-          python -m rcc.cli bench || test $? -eq 1
+          python -m rcc.cli bench

@@ -99,13 +99,24 @@ def find_data_dir(explicit=None):
     raise FileNotFoundError("未能定位数据目录（data/）")
 
 
-def build_datas():
+def build_datas(root=None):
     """产出 PyInstaller ``datas`` 列表：``[(源路径, 包内相对目录), ...]``。
 
     只收白名单内**存在**的路径；禁区成分直接抛错（构建期即拦截，
     不等构建后扫描）。
+
+    **文件与目录的目标目录算法不同**（这条写错过一次，代价是"随包数据可达"
+    这条 DoD 静默失效）：
+
+    - 文件条目（``data/rules/params.json``）→ 目标目录取 ``dirname``，
+      文件落在 ``data/rules/params.json``；
+    - 目录条目（``data/snapshots``）→ 目标目录取**条目自身**，其内容落在
+      ``data/snapshots/`` 下。PyInstaller 把目录源的**内容**复制进目标目录，
+      若也取 ``dirname``，三份快照会被拍平进 ``data/``（``data/snapshots/x.json``
+      → ``data/x.json``）——exe 内按 ``data/snapshots/`` 取数就永远找不到，
+      而构建本身不报任何错。
     """
-    root = repo_root()
+    root = root or repo_root()
     datas = []
     for rel in DATA_WHITELIST:
         head = rel.split("/", 1)[0]
@@ -114,9 +125,35 @@ def build_datas():
         src = os.path.join(root, rel.replace("/", os.sep))
         if not os.path.exists(src):
             continue
-        dest = os.path.dirname(rel.replace("/", os.sep))
+        if os.path.isdir(src):
+            dest = rel.replace("/", os.sep)
+        else:
+            dest = os.path.dirname(rel.replace("/", os.sep))
         datas.append((src, dest))
     return datas
+
+
+def unregistered_data_dirs(root=None):
+    """``data/`` 下**未登记**进白名单的目录（构建期自检用）。
+
+    白名单与数据目录互相矛盾时要自检报错：新增一个数据目录却忘了登记，
+    后果是"新数据悄悄没进包"——本地源码态照跑，换台机器就缺数据。
+    故构建前先对账，不让它走到构建后扫描那一步。
+    """
+    root = root or repo_root()
+    data_root = os.path.join(root, "data")
+    if not os.path.isdir(data_root):
+        return []
+    registered = set()
+    for rel in DATA_WHITELIST:
+        parts = rel.split("/")
+        if parts[0] == "data" and len(parts) > 1:
+            registered.add(parts[1])
+    out = []
+    for name in sorted(os.listdir(data_root)):
+        if os.path.isdir(os.path.join(data_root, name)) and name not in registered:
+            out.append(name)
+    return out
 
 
 def frozen_data_is_inside_dist(exe_dir, data_dir):

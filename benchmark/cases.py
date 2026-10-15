@@ -37,8 +37,6 @@ from rcc.alert import threshold as alert_mod
 from rcc.engine import pipeline
 from rcc.io import csv_import, snapshot
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 # 样本套件 → 观测器（B4/B5 是规则驱动层，不读真值库，故不在本表）
 SUITE_OBSERVERS = {}
 
@@ -178,8 +176,16 @@ def _params_with_overrides(workdir, overrides):
 
 
 def snapshot_path(rel):
-    """快照相对路径 → 绝对路径（真值库只存相对路径，跨机可复现）。"""
-    return os.path.join(REPO_ROOT, rel.replace("/", os.sep))
+    """快照相对路径 → 绝对路径（真值库只存相对路径，跨机可复现）。
+
+    相对路径的基准是**仓库根**（``data/snapshots/...``），而随包数据目录是
+    ``<根>/data``——故用 ``find_data_dir()`` 的上一级作基准，源码态与冻结态
+    得到同一个答案。自己按 ``__file__`` 上溯在冻结态会指到不存在的"仓库根"。
+    """
+    from rcc.packaging import find_data_dir
+
+    root = os.path.dirname(find_data_dir())
+    return os.path.join(root, rel.replace("/", os.sep))
 
 
 # ------------------------------------------------------------ B1 import 观测

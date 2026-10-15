@@ -25,7 +25,7 @@ def _tracked_text_files(repo_root):
         dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
         for filename in sorted(filenames):
             if filename.endswith((".py", ".md", ".toml", ".cfg", ".txt", ".yml", ".yaml",
-                                  ".json", ".csv", ".gitattributes", ".gitignore")):
+                                  ".json", ".csv", ".spec", ".gitattributes", ".gitignore")):
                 out.append(os.path.join(dirpath, filename))
     return out
 

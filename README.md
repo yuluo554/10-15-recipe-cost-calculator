@@ -1,6 +1,6 @@
 # 菜谱/食堂采购成本核算器
 
-> **状态**：🚧 v0.1.0 开发中（M0 骨架、M1 数据先行、M2 导入已落地；M3 核算引擎待开工）
+> **状态**：🚧 v0.1.0（M0 骨架 → M1 数据 → M2 导入 → M3 引擎 → M4 基准 → **M5 交付已完成**：免安装 exe 本地可用、随包数据可达且可自证；M6 发布待开工）
 
 把"进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警"做成**确定性规则引擎**：结论 100% 可复现、纯本地运行、零账号零上传零遥测，内置公开批发价快照做基准真值。
 
@@ -24,6 +24,7 @@
 - **行级失败不中断整批**：净料率越界或用量非法 → **该道菜**从成本卡排除并逐条列清单（退出码 1）；全部菜品都被排除 → 成本卡为空（退出码 2）。**不静默取 0/1、不丢行求和**。
 - **零字面量门禁**：业务数值只能来自参数包，抄进代码即被门禁拦下（**扫描面为整包 `src/rcc` + `benchmark/`**，含 docstring 与注释）。
 - **双形态交付**：CLI（脚本化通路）+ PySide6 桌面界面（只消费编排层 API，零判定逻辑）。
+- **免安装双 exe**：PyInstaller onedir 打包出 `rcc.exe`（控制台）与 `rcc-gui.exe`（窗口版），两者共享 `_internal/`；**随包数据落在 exe 目录内且可自证**（`--selftest` 断言 `data_dir` 在 exe 目录之内，缺数据即报 FAIL——不静默回落到开发机仓库）。
 - **纯本地**：无账号、无上传、无遥测；不联网拉价（首期只用内置快照，含抓取日期）。
 
 ## 架构
@@ -99,6 +100,35 @@ python tools/fetch_snapshots.py --selftest
 python tools/fetch_snapshots.py --refetch-check
 ```
 
+### 打包成免安装 exe（PyInstaller onedir）
+
+需要构建期依赖：`python -m pip install -e ".[build]"`。打 GUI（PySide6）**必须 PyInstaller ≥6**（5.x 确定性崩在 `Instruction object is not iterable`）。
+
+```bash
+# 构建设置见 tools/rcc.spec：产出 dist/rcc/{rcc.exe, rcc-gui.exe, _internal/}
+py -3.12 -m PyInstaller --clean --noconfirm tools/rcc.spec
+
+# 冻结态自检：结论写 JSON，退出码携带成败（0 = 全过）
+dist/rcc/rcc.exe selftest
+
+# 窗口版无 stdout，用 --selftest <输出文件> 这条脚本化验收通路
+dist/rcc/rcc-gui.exe --selftest selftest.json
+```
+
+**为什么"数据目录落在 exe 目录内"要单独断言**：打包最常见的失效模式是"数据没随包走、exe 回头读了开发机的仓库"——本地看着能跑，换台机器就废。`--selftest` 的输出里 `frozen_data_inside_dist` 这一项就是它：`data_dir` 必须落在 exe 目录之内。
+
+**验收要在中立目录跑**（如 `%LOCALAPPDATA%\Temp`），**别在仓库树内跑**——源码态的数据定位会从 CWD 上溯命中仓库 `data/`，"内嵌数据"就验了个寂寞。
+
+```bash
+# 冻结态实测（中立目录，exe 路径按实际替换）
+cd %TEMP%
+<解压目录>\rcc\rcc.exe selftest          # frozen=true 且 frozen_data_inside_dist 为 true
+<解压目录>\rcc\rcc.exe bench             # 总判: 达标
+<解压目录>\rcc\rcc-gui.exe --selftest out.json   # 写 JSON，退出码 0
+```
+
+数据白名单**单一事实源**是 `src/rcc/packaging.py` 的 `DATA_WHITELIST`：`data/rules/params.json`、`data/samples`、`data/snapshots`、`data/truth`。新增数据目录必须同步登记——spec 在构建前会对账，`data/` 下出现未登记目录即构建失败。
+
 ### 进货单格式（导入契约）
 
 CSV，**UTF-8 编码**（带 BOM 亦可，Excel「另存为 CSV UTF-8」即此形态），首行为表头：
@@ -171,7 +201,8 @@ data/        数据资产（README 依据查证 / rules 参数包 / samples 样�
 src/rcc/     唯一包（cli / model / rules / io / engine / alert / report / gui / packaging）
 benchmark/   基准套件（runner + cases 对账语义单一实现源与活体观测器）
 tools/       生成器与门禁（gen_params / gen_samples / gen_truth / check_literals / audit_desensitize / detrng / fetch_snapshots）
-tests/       unit / guards / integration / benchmark / gui（287 项，双解释器 3.8 与 3.12 全绿）
+             打包（rcc.spec 构建规格 + launcher_cli / launcher_gui 冻结态入口）
+tests/       unit / guards / integration / benchmark / gui（311 项，双解释器 3.8 与 3.12 全绿）
 ```
 
 ## 限制
@@ -181,6 +212,22 @@ tests/       unit / guards / integration / benchmark / gui（287 项，双解释
 - **净料率/损耗率无官方公开表**：内置值为**经验值**，用户须自行核对并可按自身情况配置。
 - **不含营养成分计算**（列为扩展项）。
 - 首期仅支持 **CSV** 进货单（只接受 UTF-8，含 BOM；Excel 另存为「CSV UTF-8」即可导入）。**Excel（.xlsx）列为扩展项**——见 plan/00 决策记录 2026-10-15（自写最小 xlsx 读需 `zipfile`+XML 并纳入 EOL/外链/确定性守门面，引 `openpyxl` 则破"核心零第三方依赖"，两者均与首期 DoD 无关）。
+- **免安装形态是 onedir（一个目录），不是单文件 exe**：`rcc.exe` / `rcc-gui.exe` 必须与同目录的 `_internal/` 一起拷贝或解压，单独把 exe 拷走会缺运行库与随包数据。选 onedir 是因为它启动快、且随包数据能落在 exe 目录内可自证。
+
+## 下载即用
+
+⬜ **待 M6 发布后回填**：Release 附件为 ASCII 名 zip（`rcc-vX.Y.Z-win64.zip`），下载后解压到任意目录即可运行，无需安装 Python。
+
+```bash
+# 校验下载件（sha256 与发布留档逐位比对；附件名与校验值 M6 发布时回填）
+# sha256sum rcc-vX.Y.Z-win64.zip
+
+# 解压后先自检：确认随包数据落在解压目录内
+rcc/rcc.exe selftest
+rcc/rcc-gui.exe --selftest selftest.json
+```
+
+> **诚实口径**：Release 尚未创建（M6 的 DoD）。上表的附件名与 sha256 留空待回填，不预填未实测的值。
 
 ## 数据来源声明
 
@@ -198,6 +245,7 @@ tests/       unit / guards / integration / benchmark / gui（287 项，双解释
 - **构建工具版本**：打桌面界面（PySide6）必须 **PyInstaller ≥6**（5.x 在扫描 PySide6 字节码时确定性失败）；只打 CLI 可用 5.x。
 - **`py` 启动器会无视 venv**：venv 段落一律用 `python -m pip ...`，不用 `py -m pip ...`。
 - **控制台编码**：程序入口已做 UTF-8 守卫；若在非 UTF-8 控制台看到乱码，用 `py -X utf8`。
+- **窗口版 exe 没有控制台**：`rcc-gui.exe` 的 stdout 不接终端，所以它的自检结论用 `--selftest <输出文件>` 写 JSON 文件回传，**退出码携带成败**（这条通路也是脚本化验收窗口版的唯一方式）。
 
 ## 许可
 

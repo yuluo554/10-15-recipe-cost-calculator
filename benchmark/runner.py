@@ -24,7 +24,22 @@ from decimal import Decimal
 from . import cases as cases_mod
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRUTH_DIR = os.path.join(REPO_ROOT, "data", "truth")
+
+
+def _data_dir():
+    """随包数据目录（源码态 = 仓库 ``data/``；冻结态 = exe 内嵌的 ``data/``）。
+
+    **经 ``rcc.packaging.find_data_dir()`` 定位，不自己拼路径**：冻结态下
+    ``__file__`` 指向包内解包位置，按它上溯出来的"仓库根"并不存在——直接拼
+    ``data/truth`` 会得到"随包数据看着没进包"的假故障。定位口径只准有一处
+    （plan/06 §四）。
+    """
+    from rcc.packaging import find_data_dir
+
+    return find_data_dir()
+
+
+TRUTH_DIR = os.path.join(_data_dir(), "truth")
 MANIFEST_PATH = os.path.join(TRUTH_DIR, "manifest.json")
 
 # 套件注册表（新增基准必须注册在此，否则 --only 传它走 exit 2 而非静默跳过）
