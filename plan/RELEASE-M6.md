@@ -195,7 +195,14 @@ plan/05 §七 要求"**以当轮实测为准留档**（两种行为都出现过�
 
 **结论：本仓库的 `on: push`（不带 branches/tags 限定）对 tag push 与 branch push 都触发。** 故 push tag 与 push main 各产生一轮 run（同一 sha 出现两轮，是因为两次 push 分别触发，**不是**失败重跑）。
 
-> **tag 移动后的复验纪律**（plan/05 §十）：本轮**未移动**已发布 Release 的 tag——tag 一次性打在含完整回写的提交上。若将来必须移动，务必复验 `isDraft`：GitHub 会把移动过 tag 的 Release 打回 draft。
+> **tag 移动后的复验纪律**（plan/05 §十）：本轮**实际发生了 tag 移动**——tag 先打在 `94d192a`（当时最新提交）并据此创建了 Release；随后回填文档又落了 `376ee33`，按"tag 须打在含完整收尾回写文档的提交上"的要求把 tag 前移到 `376ee33`。**移动后立即复验 `isDraft`**：
+>
+> | 时点 | tag 指向 | `isDraft` | 附件 |
+> |---|---|---|---|
+> | Release 创建时 | `94d192a` | `false` | `rcc-v0.1.0-win64.zip`（118,507,589 B） |
+> | **tag 前移后** | `376ee33` | **`false`（未被退回 draft）** | 同上（未受影响） |
+>
+> **实测口径**：本轮的 Release 是**按 `targetCommitish=main`** 创建的（`gh release create` 在 `main` 上取最新提交），故移动 tag **未**把它打回 draft——plan/05 §十 那句"移动 tag 会打回 draft"指的是 Release **绑定到 tag 本身**的形态。**纪律照做：无论哪种形态，移动后都必须复验 `isDraft`**——本轮做了，结果是 `false`。
 
 ---
 
