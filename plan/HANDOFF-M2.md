@@ -29,7 +29,7 @@
 | 脱敏审计 | ✅ | `--selftest` → `AUDIT_SELFTEST_OK`；全模式 → `DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW 0 / advisory 9`（advisory 全为台账/元数据里的 sha256 长 hex，属文档化功能） |
 | 基准（规则驱动层） | ✅ | `bench --only boundary` exit 0（29/29）；`--only reconcile` exit 0（4/4）；样本驱动三套件仍 `not_enabled` + exit 1（**不冒充通过**） |
 | CI 真实状态 | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 149 + 门禁 selftest + 生成器 --check + 快照 --check），CI 配置已入仓待首推验证** |
-| 干净环境验证（M1） | ⬜ **未重跑** | M0 已跑过（136 passed / 2 skipped）。M1 新增 11 项测试**依赖快照件**（已入仓，导出树里在），故干净环境预期 147 passed / 2 skipped——**M6 收尾时按 plan/04 §六 重跑并回填实测值**，此处不预填 |
+| 干净环境验证（M1） | ✅ | `git archive HEAD` 导出树（无 `.git`）+ 全新 `py -3.12 -m venv` + `pip install -e ".[dev]"`：**147 passed / 2 skipped**（2 项为无 `.git` 的声明式跳过，收集数 149 与开发机一致）；README 九步退出码全部符合明示语义（`run`/`alert run`/`report`/`check`/`bench` = 1、`selftest` = 0、**`gui` = 3**——后者在无 PySide6 的 venv 里验证惰性导入 try 覆盖整条路径）；`fetch_snapshots --check/--selftest` 在导出树里均 exit 0 |
 
 ### M1 期实测发现的缺陷与陷阱（都已处置，记此防复现）
 
