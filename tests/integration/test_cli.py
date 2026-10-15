@@ -173,3 +173,191 @@ def test_pending_param_blocks_with_exit_1(repo_root, tmp_path):
                                "--bom", "data/samples/bom-demo.json")
     assert code == 1, err
     assert "门控拦截" in err
+
+
+# --------------------------------------------------- 导入失败路径（M2）
+#
+# **形态问题 = exit 2，行问题 = exit 1**：整份文件不可用（空/坏编码/缺表头）与
+# "文件可读但某几行不合格"是两种不同的退出码语义。把前者混进逐行清单，读者会去
+# 改某一行；把后者报成 exit 2，则"部分可用"被当成"完全不可用"。
+
+BOM = "data/samples/bom-demo.json"
+SAMPLE = "data/samples/purchases-demo.csv"
+
+
+def _write_bytes(tmp_path, payload, name):
+    path = tmp_path / name
+    with open(str(path), "wb") as fh:
+        fh.write(payload)
+    return str(path)
+
+
+def _write_text(tmp_path, text, name):
+    path = tmp_path / name
+    with open(str(path), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    return str(path)
+
+
+def _bom_for(tmp_path, *foods):
+    """写一个只引用给定食材的最小 BOM。
+
+    小进货单测试必须配小 BOM：拿仓库样例 BOM（引用 10 种食材）去配 1-2 行的小进货单，
+    失败原因会变成"BOM 引用了库里没有的食材"——**那测的就不是被测的那件事了**。
+    """
+    import json
+
+    payload = {"schema_version": "1", "shop": "示例食堂甲",
+               "dishes": [{"name": "测试菜",
+                           "items": [{"food": food, "qty": "1"} for food in foods]}]}
+    path = tmp_path / "bom-min.json"
+    with open(str(path), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    return str(path)
+
+
+@pytest.mark.parametrize("name,payload,expect", [
+    ("empty.csv", b"", "为空"),
+    ("blank.csv", "\n \n".encode("utf-8"), "为空"),
+    ("header-only.csv", "日期,品名,类别,数量,单位,单价,金额\n".encode("utf-8"),
+     "只有表头"),
+    ("gbk.csv", ("日期,品名,类别,数量,单位,单价,金额\n"
+                 "2026-10-01,大白菜,蔬菜,10,斤,0.50,5.00\n").encode("gbk"),
+     "不是 UTF-8"),
+    ("missing-col.csv", "日期,品名,类别,单位\n2026-10-01,大白菜,蔬菜,斤\n".encode("utf-8"),
+     "缺少必填列"),
+])
+def test_run_shape_failures_are_exit_2(repo_root, tmp_path, name, payload, expect):
+    """整份文件不可用 → exit 2（**不进逐行清单**），且报错说明真因。"""
+    path = _write_bytes(tmp_path, payload, name)
+    code, _out, err = _run_cli(repo_root, "run", "--purchases", path, "--bom", BOM)
+    assert code == 2, "形态问题应为 exit 2，实际 %d\n%s" % (code, err)
+    assert expect in err, "报错未说明真因（期望含 %r）:\n%s" % (expect, err)
+
+
+@pytest.mark.parametrize("name,payload,expect", [
+    ("empty.csv", b"", "为空"),
+    ("header-only.csv", "日期,品名,类别,数量,单位,单价,金额\n".encode("utf-8"),
+     "只有表头"),
+    ("gbk.csv", ("日期,品名,类别,数量,单位,单价,金额\n"
+                 "2026-10-01,大白菜,蔬菜,10,斤,0.50,5.00\n").encode("gbk"),
+     "不是 UTF-8"),
+])
+def test_check_shape_failures_are_exit_2(repo_root, tmp_path, name, payload, expect):
+    """``check`` 与 ``run`` 对同一形态问题必须给**同一退出码**（不漂移）。"""
+    path = _write_bytes(tmp_path, payload, name)
+    code, _out, err = _run_cli(repo_root, "check", "--purchases", path)
+    assert code == 2, "形态问题应为 exit 2，实际 %d\n%s" % (code, err)
+    assert expect in err
+
+
+def test_all_rows_invalid_is_exit_2_not_silent_success(repo_root, tmp_path):
+    """全行异常 → 食材库为空，**不得**把错误指向 BOM。
+
+    "BOM 引用了食材库中不存在的食材"会让用户去改 BOM——真因在进货单。
+    """
+    path = _write_text(tmp_path,
+                       "日期,品名,类别,数量,单位,单价,金额\n"
+                       "2026-10-01,,蔬菜,10,斤,0.50,5.00\n"
+                       "2026-10-01,土豆,蔬菜,abc,斤,1.50,0\n", "allbad.csv")
+    code, _out, err = _run_cli(repo_root, "run", "--purchases", path, "--bom", BOM)
+    assert code == 2, err
+    assert "无任何可用行" in err, "未指出进货单零可用行:\n%s" % err
+    assert "不存在的食材" not in err, "把进货单的问题误报成了 BOM 的问题:\n%s" % err
+
+
+def test_check_reports_all_rows_invalid_as_issue(repo_root, tmp_path):
+    """``check`` 的职责是报告问题：零可用行 → exit 1 + 清单里有它。"""
+    path = _write_text(tmp_path,
+                       "日期,品名,类别,数量,单位,单价,金额\n"
+                       "2026-10-01,,蔬菜,10,斤,0.50,5.00\n", "allbad.csv")
+    code, out, _err = _run_cli(repo_root, "check", "--purchases", path,
+                               "--bom", BOM)
+    assert code == 1, "check 检出问题应 exit 1"
+    assert "无任何可用行" in out
+
+
+def test_structure_unparsable_row_is_reported_not_silently_dropped(repo_root, tmp_path):
+    """整行结构不可解析 → 记 unknown 且**列入清单**（不静默丢弃）。
+
+    BOM 只引用**幸存的那一行**（土豆）：结构错行的大白菜不入库，若 BOM 引用它，
+    报错会变成"引用了不存在的食材"——那测的就不是"结构错行被列入清单"了。
+    """
+    path = _write_text(tmp_path,
+                       "日期,品名,类别,数量,单位,单价,金额\n"
+                       "2026-10-01,大白菜,蔬菜,10,斤,0.50,5.00,多余\n"
+                       "2026-10-01,土豆,蔬菜,8,斤,1.50,12.00\n", "struct.csv")
+    code, out, _err = _run_cli(repo_root, "run", "--json", "--purchases", path,
+                               "--bom", _bom_for(tmp_path, "土豆"))
+    assert code == 1, "有异常行应 exit 1（降级完成）"
+    import json
+
+    payload = json.loads(out)
+    codes = [w["code"] for w in payload["warnings"]]
+    assert "structure_unparsable" in codes, "结构不可解析的行被静默丢弃了"
+    assert payload["library_size"] == 1, "仅土豆可用（结构错行不入库）"
+
+
+def test_bom_header_csv_is_accepted(repo_root, tmp_path):
+    """BOM（Excel 另存 CSV 的默认形态）必须能跑通——否则最常见的用户路径直接挂。"""
+    payload = ("\ufeff日期,品名,类别,数量,单位,单价,金额\n"
+               "2026-10-01,大白菜,蔬菜,10,斤,0.50,5.00\n").encode("utf-8")
+    path = _write_bytes(tmp_path, payload, "bom.csv")
+    code, out, err = _run_cli(repo_root, "check", "--purchases", path)
+    assert code == 0, "带 BOM 的 CSV 应无异常，实际 %d\n%s%s" % (code, out, err)
+
+
+def test_duplicate_name_uses_last_price_and_is_surfaced(repo_root, tmp_path):
+    """同品名多次进货：取**最后一条**价，且该取舍在输出里可见（非隐性）。"""
+    path = _write_text(tmp_path,
+                       "日期,品名,类别,数量,单位,单价,金额\n"
+                       "2026-10-01,土豆,蔬菜,10,斤,1.00,10.00\n"
+                       "2026-10-05,土豆,蔬菜,10,斤,2.00,20.00\n", "dup.csv")
+    code, out, _err = _run_cli(repo_root, "run", "--json", "--purchases", path,
+                               "--bom", _bom_for(tmp_path, "土豆"))
+    assert code == 0, "两行均合格，无异常行 → exit 0"
+    import json
+
+    payload = json.loads(out)
+    assert payload["duplicate_food_names"] == ["土豆"]
+    assert str(payload["cards"][0]["lines"][0]["purchase_unit_price"]) == "2.00", \
+        "未取最后一条价"
+
+
+
+def test_sample_import_is_reproducible_across_runs(repo_root):
+    """样例导入复跑通过（M2 DoD）：同输入两次 JSON 输出逐字节一致。"""
+    args = ("run", "--json", "--purchases", SAMPLE, "--bom", BOM)
+    first = _run_cli(repo_root, *args)
+    second = _run_cli(repo_root, *args)
+    assert first[0] == second[0] == 1, first[2]
+    assert first[1] == second[1], "同输入的 JSON 输出不逐字节一致（引入了非确定性）"
+
+
+def test_sample_anomaly_list_is_reproducible(repo_root):
+    """异常行清单可复现（M2 DoD）：重复导出，清单与计数逐条相同。"""
+    import json
+
+    seen = []
+    for _ in range(2):
+        code, out, _err = _run_cli(repo_root, "run", "--json",
+                                   "--purchases", SAMPLE, "--bom", BOM)
+        assert code == 1
+        payload = json.loads(out)
+        seen.append([(w["line"], w["status"], w["code"]) for w in payload["warnings"]])
+        assert payload["purchases_summary"], "摘要缺失"
+    assert seen[0] == seen[1], "异常行清单两次不一致"
+
+
+def test_sample_covers_all_three_states(repo_root):
+    """样例是三态的演示载体：ok / invalid / unknown 都要在样例上看得见。"""
+    import json
+
+    code, out, _err = _run_cli(repo_root, "run", "--json",
+                               "--purchases", SAMPLE, "--bom", BOM)
+    assert code == 1
+    payload = json.loads(out)
+    statuses = {w["status"] for w in payload["warnings"]}
+    assert {"invalid", "unknown"} <= statuses
+    assert payload["library_size"] > 0, "ok 行应进入食材库"
+

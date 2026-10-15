@@ -89,6 +89,9 @@ def cmd_run(args):
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     else:
         print(result["summary"])
+        # 摘要写着"见清单"，就必须真有清单可看（否则是指向空处的指路语）
+        for line in pipeline.render_issues(result.get("warnings") or []):
+            print(line)
 
     if args.report:
         from .report import export
@@ -118,6 +121,8 @@ def cmd_check(args):
         return EXIT_USAGE
 
     print(report["summary"])
+    for line in pipeline.render_issues(report.get("issues") or []):
+        print(line)
     return EXIT_DEGRADED if report.get("issues") else EXIT_OK
 
 

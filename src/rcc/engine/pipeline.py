@@ -15,7 +15,7 @@ from decimal import Decimal
 from .. import __version__
 from ..alert import threshold as alert_mod
 from ..io import csv_import, snapshot
-from ..model import quantize_money, quantize_rate, to_decimal
+from ..model import STATUS_INVALID, quantize_money, quantize_rate, to_decimal
 from ..rules import formulas
 from ..rules.params import effective_params, load_params, scope_report
 
@@ -161,6 +161,24 @@ def _scope_reports(data):
     return [scope_report(data, scope) for scope in SCOPE_ORDER]
 
 
+def _require_usable_rows(parsed, label):
+    """零可用行时给出**指向真因**的报错。
+
+    全部行判 ``invalid``/``unknown`` 时食材库为空，若放任下游继续，报错会变成
+    "BOM 引用了食材库中不存在的食材"——**把读者引向 BOM 去改，而真因在进货单**。
+    这类"错误指向错误的对象"比沉默更坏：用户会照着提示改错文件。
+
+    退出码语义不变（输入不可用 = 2），只是把原因说准。
+    """
+    if parsed["rows"]:
+        return
+    counts = parsed.get("status_counts") or {}
+    raise ValueError(
+        "%s无任何可用行（%d 行全部异常：invalid %d / unknown %d）——"
+        "请先修正进货单" % (label, len(parsed["issues"]),
+                          counts.get("invalid", 0), counts.get("unknown", 0)))
+
+
 def compute_full(args):
     """端到端：导入 → 成本卡 → 定价 →（可选）预警。
 
@@ -175,6 +193,7 @@ def compute_full(args):
         raise ValueError("缺少 --purchases 输入")
     parsed = csv_import.parse_purchases(args.purchases)
     warnings.extend(parsed["issues"])
+    _require_usable_rows(parsed, "进货单")
     library = csv_import.build_food_library(parsed["rows"])
 
     if not getattr(args, "bom", None):
@@ -188,6 +207,7 @@ def compute_full(args):
         "version": __version__,
         "purchases_summary": parsed["summary"],
         "library_size": len(library),
+        "duplicate_food_names": csv_import.duplicate_names(parsed["rows"]),
         "cards": cards,
         "pricing": pricing,
         "warnings": warnings,
@@ -212,27 +232,48 @@ def compute_full(args):
 
 
 def check_inputs(args):
-    """校验输入数据（不产出报告）。"""
+    """校验输入数据（不产出报告）。
+
+    **与 ``compute_full`` 共用同一分派点**：两者都只经 ``csv_import.parse_purchases``
+    取三态判定，本模块**不另写一份列名映射或判定逻辑**（plan/06 硬纪律）。
+
+    与 ``run`` 的差别只在**失败后的语义**：``run`` 零可用行即无法继续 → exit 2；
+    ``check`` 的职责就是"报告问题"，零可用行正是它要报的问题 → 记入 issues 后
+    **不抛错**（exit 1）。此时**不做 BOM 交叉核对**——食材库为空是进货单造成的，
+    拿它去比对 BOM 只会报出"BOM 引用了不存在的食材"，把读者引向错误的文件。
+    """
     params_path = _params_path(args)
     data = load_params(params_path)
     cost_params = effective_params("cost", params_path)
 
     issues = []
     summary_parts = []
+    library = {}
     if getattr(args, "purchases", None):
         parsed = csv_import.parse_purchases(args.purchases)
         issues.extend(parsed["issues"])
         summary_parts.append(parsed["summary"])
-        library = csv_import.build_food_library(parsed["rows"])
-    else:
-        library = {}
+        duplicates = csv_import.duplicate_names(parsed["rows"])
+        if duplicates:
+            summary_parts.append("重复品名 %d 个（食材库取最后一条价）: %s"
+                                 % (len(duplicates), "、".join(duplicates)))
+        if parsed["rows"]:
+            library = csv_import.build_food_library(parsed["rows"])
+        else:
+            issues.append({
+                "line": 0, "status": STATUS_INVALID,
+                "code": csv_import.ISSUE_NO_USABLE_ROWS,
+                "reason": "进货单无任何可用行——食材库为空，已跳过 BOM 交叉核对",
+            })
 
+    cards = []
     if getattr(args, "bom", None):
         dishes = _load_bom(args.bom)
-        cards = compute_costcard(dishes, library, cost_params)
-        summary_parts.append("成本卡 %d 道菜" % len(cards))
-    else:
-        cards = []
+        if library:
+            cards = compute_costcard(dishes, library, cost_params)
+            summary_parts.append("成本卡 %d 道菜" % len(cards))
+        else:
+            summary_parts.append("BOM %d 道菜（未核对：食材库为空）" % len(dishes))
 
     return {
         "issues": issues,
@@ -253,4 +294,30 @@ def render_summary(result):
         parts.append("预警：%d 项超阈值" % len(result["alert"]["flagged"]))
     if result["warnings"]:
         parts.append("异常 %d 条（见清单，未静默跳过）" % len(result["warnings"]))
+    if result.get("duplicate_food_names"):
+        parts.append("重复品名 %d 个（食材库取最后一条价）: %s"
+                     % (len(result["duplicate_food_names"]),
+                        "、".join(result["duplicate_food_names"])))
     return "；".join(parts)
+
+
+def render_issues(issues):
+    """异常行清单的**人类可读渲染**（CLI 非 JSON 通路用；JSON 通路直接用原清单）。
+
+    摘要里写着"见清单"，那就必须真有清单可看——否则读者拿到的是一句指向空处的
+    指路语。报告层与 CLI 都消费本函数，**不各写一份格式**。
+
+    返回行列表（不含换行），便于调用方决定缩进与流。
+    """
+    if not issues:
+        return []
+    lines = ["异常清单（逐条列出，未静默跳过）:"]
+    width = max(len(str(issue.get("line", ""))) for issue in issues)
+    for issue in issues:
+        line_no = str(issue.get("line", ""))
+        # line=0 是"文件级"结论（如零可用行），不指向具体某行
+        where = "第 %s 行" % line_no.rjust(width) if line_no.isdigit() and int(line_no) else "文件级"
+        lines.append("  %s  [%s] %s" % (where, issue.get("status", ""),
+                                        issue.get("reason", "")))
+    return lines
+
