@@ -94,7 +94,7 @@ def test_both_paths_call_the_single_parser(repo_root, anomaly_csv, monkeypatch):
 
     monkeypatch.setattr(csv_import, "parse_purchases", _counting)
 
-    bom = os.path.join(repo_root, "data", "samples", "bom-demo.json")
+    bom = os.path.join(repo_root, "src", "rcc", "data", "samples", "bom-demo.json")
 
     pipeline.check_inputs(_Args(anomaly_csv, None))
     assert calls, "check 通路未调用 parse_purchases（另一份判定逻辑？）"
@@ -116,8 +116,8 @@ def test_both_paths_agree_on_three_state_verdict(repo_root):
     用仓库样例作输入：它同时含 ok / invalid / unknown（表头级与行级）与重复品名，
     且覆盖 BOM 引用的全部食材，故两条通路都能跑完（不是"都在同一处报错"的假一致）。
     """
-    purchases = os.path.join(repo_root, "data", "samples", "purchases-demo.csv")
-    bom = os.path.join(repo_root, "data", "samples", "bom-demo.json")
+    purchases = os.path.join(repo_root, "src", "rcc", "data", "samples", "purchases-demo.csv")
+    bom = os.path.join(repo_root, "src", "rcc", "data", "samples", "bom-demo.json")
     args = _Args(purchases, bom)
 
     check_report = pipeline.check_inputs(args)
@@ -150,7 +150,7 @@ def test_check_surfaces_zero_usable_rows_instead_of_blaming_bom(repo_root, tmp_p
                  "2026-10-01,,蔬菜,10,斤,0.50,5.00\n"
                  "2026-10-01,土豆,蔬菜,abc,斤,1.50,0\n")
 
-    args = _Args(str(path), os.path.join(repo_root, "data", "samples", "bom-demo.json"))
+    args = _Args(str(path), os.path.join(repo_root, "src", "rcc", "data", "samples", "bom-demo.json"))
     report = pipeline.check_inputs(args)
 
     reasons = " ".join(issue["reason"] for issue in report["issues"])
@@ -172,7 +172,7 @@ def test_run_zero_usable_rows_names_the_purchases_file(repo_root, tmp_path):
         fh.write("日期,品名,类别,数量,单位,单价,金额\n"
                  "2026-10-01,,蔬菜,10,斤,0.50,5.00\n")
 
-    args = _Args(str(path), os.path.join(repo_root, "data", "samples", "bom-demo.json"))
+    args = _Args(str(path), os.path.join(repo_root, "src", "rcc", "data", "samples", "bom-demo.json"))
     with pytest.raises(ValueError) as excinfo:
         pipeline.compute_full(args)
     message = str(excinfo.value)

@@ -15,6 +15,12 @@ for path in (SRC, REPO_ROOT):
     if path not in sys.path:
         sys.path.insert(0, path)
 
+# 数据落点**只从 rcc.packaging 取**（M7：数据搬进包内 `src/rcc/data/`）。
+# 测试里不写死 "src/rcc/data"——两处各写一份就是第二份真相。
+from rcc.packaging import PACKAGE_DATA_REL  # noqa: E402
+
+DATA_DIR = os.path.join(REPO_ROOT, PACKAGE_DATA_REL.replace("/", os.sep))
+
 
 @pytest.fixture(scope="session")
 def repo_root():
@@ -22,9 +28,17 @@ def repo_root():
 
 
 @pytest.fixture(scope="session")
+def data_dir():
+    """随包数据目录（源码态 = ``src/rcc/data``）。"""
+    if not os.path.isdir(DATA_DIR):
+        pytest.fail("随包数据目录缺失: %s" % DATA_DIR)
+    return DATA_DIR
+
+
+@pytest.fixture(scope="session")
 def params_path():
     """参数包路径（冻结产物）。"""
-    path = os.path.join(REPO_ROOT, "data", "rules", "params.json")
+    path = os.path.join(DATA_DIR, "rules", "params.json")
     if not os.path.isfile(path):
         pytest.fail("参数包缺失，请先跑 tools/gen_params.py")
     return path
@@ -32,7 +46,7 @@ def params_path():
 
 @pytest.fixture(scope="session")
 def samples_dir():
-    path = os.path.join(REPO_ROOT, "data", "samples")
+    path = os.path.join(DATA_DIR, "samples")
     if not os.path.isdir(path):
         pytest.fail("样例目录缺失，请先跑 tools/gen_samples.py")
     return path

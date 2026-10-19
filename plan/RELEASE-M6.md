@@ -214,3 +214,26 @@ plan/05 §七 要求"**以当轮实测为准留档**（两种行为都出现过�
 3. **`--dist-path` 的引入**：M5 纪律把构建产物放在**仓库树外**，而审计器的 dist 模式原本只认仓库内 `dist/`——发布期产物按纪律在树外，故必须支持显式路径，否则"产物扫描"这一步会在正确的纪律下**扫了个空**；
 4. **`gh release download` 必须在仓库目录内跑**：在仓库外的临时目录执行会报 `failed to run git: fatal: not a git repository`——它不是"下载失败"，而是**找不到仓库上下文**（退出码仍为 0，容易误判为成功）。**"命令没报错"与"文件真下下来了"要分开验**（用 `ls` 看字节数为证）；
 5. **`git tag -f` 前移会留下悬空 tag 对象**：每次前移都产生一个不可达的旧 tag 对象，`git fsck` 会报 `dangling tag`。**它不是污染**（body 只有 noreply、指向可达提交），但"三清"要求 fsck 干净，故收尾用 `reflog expire --expire-unreachable=now` + `gc --prune=now` 清掉。**判别口诀：fsck 报悬空 ≠ 有敏感泄漏，先看对象类型与内容再决定清不清**——把"悬空"一律当污染处理，会在无关对象上浪费一次全仓 gc。
+
+---
+
+## 十二、M7 发布后复核（2026-10-20）：v0.1.0 的 pip 安装形态曾不可用
+
+> **本节不影响已发布的 v0.1.0 产物**：`rcc-v0.1.0-win64.zip`
+> （118,507,589 B / sha256 `fc62a21e…09a3`）与 `plan/DIST-sha256-M6.txt` **均未改动**，
+> tag `v0.1.0` 与 Release 也未动。本轮只改源码树与门禁，**不重新打包、不发 Release**。
+
+| 项 | 结论 |
+|---|---|
+| 缺陷 | `pip install` 出来的 wheel **零数据文件**（`data/` 在仓库根、包外、无 `package-data`）→ 装完 `selftest` exit 1（`ok=false`）、`bench` 裸 traceback、`run` exit 2 |
+| 为什么发布期没发现 | 发布验收走的是 **exe（冻结态）** 与 **editable 安装**；两者都命中仓库根/内嵌数据。**"能下载能跑"与"能 pip install 能跑"是两种装态，M6 只验了前者** |
+| 修复 | 数据迁入 `src/rcc/data/` + `package-data` + `find_data_dir()` 包内分支；详见 `plan/HANDOFF-M6.md §七` |
+| 新增门禁 | `tests/guards/test_install_smoke.py`（结构级 + 行为级）与 CI "Installed-wheel smoke" 一步 |
+| 对已发布产物的影响 | **无**。exe 的 `_internal/data` 布局与内容均未变（`build_datas()` 的**目标**路径未变，只改了**源**） |
+| 版本号 | **未升**（0.1.0 不变）。若要把修复以 pip 形态对外发布，需要一次新的版本 + tag + Release——**属另一个对话的决定** |
+| CI 侧验证 | ⬜ **待复验**（本轮不 push，新 CI 步骤尚未在 GitHub 上跑过） |
+
+**一条口径补充（写给下次发布）**：发布验收清单里"干净环境"要区分**两种装态**——
+① 下载 zip 解压跑 exe（免安装形态）；② `pip install <wheel>`（库/CLI 形态）。
+只验①会让②的缺陷一路躲到用户第一次 `pip install` 才暴露，而 CI 的 editable 安装
+**结构上问不到**这个问题（它永远把仓库根放上 `sys.path`）。

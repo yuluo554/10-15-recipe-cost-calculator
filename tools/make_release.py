@@ -198,6 +198,12 @@ def check_dist(dist_root, repo_root, whitelist, forbidden):
         problems.append("断言二/三：未找到内嵌数据目录 %s（数据没随包走？）" % bundled)
         return problems
 
+    # 仓库侧对应物的位置**只从 rcc.packaging 取**（M7：数据搬进包内 src/rcc/data/）。
+    # 不在此复制一份 "src/rcc/data"——两处各写一份就是第二份真相。
+    from rcc.packaging import package_data_dir  # noqa: PLC0415
+
+    source_root = package_data_dir(repo_root)
+
     seen = []
     for dirpath, dirnames, filenames in os.walk(bundled):
         dirnames.sort()
@@ -212,12 +218,12 @@ def check_dist(dist_root, repo_root, whitelist, forbidden):
                 continue
 
             # 断言二：与仓库内同相对路径的字节一致
-            counterpart = os.path.join(repo_root, "data", rel.replace("/", os.sep))
+            counterpart = os.path.join(source_root, rel.replace("/", os.sep))
             if not os.path.isfile(counterpart):
-                problems.append("断言二：仓库内缺少对应文件 data/%s" % rel)
+                problems.append("断言二：仓库内缺少对应文件 %s" % counterpart)
                 continue
             if _sha256_of(path) != _sha256_of(counterpart):
-                problems.append("断言二：包内数据与仓库不一致 data/%s" % rel)
+                problems.append("断言二：包内数据与仓库不一致 %s" % counterpart)
 
     if not seen:
         problems.append("断言二/三：内嵌数据目录为空")

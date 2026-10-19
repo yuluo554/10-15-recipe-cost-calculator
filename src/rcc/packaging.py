@@ -11,14 +11,23 @@
 import os
 import sys
 
-# 随包数据白名单（相对仓库根）。**单一事实源**：spec 只准经 build_datas() 取数据路径，
-# 不得手写。新增数据目录必须同时登记在此，否则构建后断言报"白名单外多余"。
+# 随包数据白名单（**包内相对路径**）。**单一事实源**：spec 只准经 build_datas() 取数据
+# 路径，不得手写。新增数据目录必须同时登记在此，否则构建后断言报"白名单外多余"。
+#
+# 条目是"装好之后数据在哪儿"（包内 ``rcc/data/...``，冻结态 ``_internal/data/...``），
+# 而**磁盘上的源**统一在 :func:`package_data_dir` 下——两者只差一个前缀，由
+# ``PACKAGE_DATA_REL`` 表达。M7 之前数据在仓库根 ``data/``（包外），于是
+# ``pip install`` 出来的 wheel 里**一个数据文件都没有**，装完 `selftest` 必然失败。
 DATA_WHITELIST = (
     "data/rules/params.json",
     "data/snapshots",
     "data/samples",
     "data/truth",
 )
+
+# 数据在源码树中的位置（相对仓库根）。**唯一事实源**：生成器、门禁、发布物对账
+# 全从这里推，不各写一份 "src/rcc/data"。
+PACKAGE_DATA_REL = "src/rcc/data"
 
 # 禁区成分：这些目录**绝不能**进发行包（版权原文/开发过程材料）。
 FORBIDDEN_IN_DIST = (
@@ -33,6 +42,18 @@ def repo_root():
     """仓库根（源码态 = 包的上一级；冻结态无意义，用 find_data_dir）。"""
     here = os.path.dirname(os.path.abspath(__file__))
     return os.path.dirname(os.path.dirname(here))
+
+
+def package_data_dir(root=None):
+    """随包数据在**磁盘上的源目录**。
+
+    源码态 = ``<仓库根>/src/rcc/data``；装态 = ``<site-packages>/rcc/data``
+    （即包内 ``data/``）。两种形态下它都**就在包旁边**——这正是
+    ``find_data_dir()`` 能同时服务源码态与装态的原因：不需要知道"仓库根"在哪。
+    """
+    if root is None:
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    return os.path.join(root, PACKAGE_DATA_REL.replace("/", os.sep))
 
 
 def is_frozen():
@@ -65,8 +86,9 @@ def find_data_dir(explicit=None):
     1. 显式参数
     2. 环境变量 ``RCC_DATA_DIR``
     3. 冻结态：``_MEIPASS/data`` → ``_internal/data`` → ``exe目录/data``
-    4. 源码态：仓库根 ``data/``
-    5. CWD 上溯找 ``data/``
+    4. **包内** ``data/``（``src/rcc/data`` 源码态 / ``site-packages/rcc/data`` 装态）
+    5. 仓库根 ``data/``（M7 前的旧布局，仅为兼容保留）
+    6. CWD 上溯找 ``data/``
     """
     if explicit:
         return os.path.abspath(explicit)
@@ -82,6 +104,13 @@ def find_data_dir(explicit=None):
         # 冻结态找不到内嵌数据 → 返回首选候选路径（由自检判定为 FAIL），
         # 绝不回落到开发机仓库（那会让"内嵌数据"验了个寂寞）
         return os.path.abspath(_frozen_data_candidates()[0])
+
+    # **包内优先**：这一条让"pip install 出来的 wheel"与源码态走同一条路。
+    # 排在 repo_root() 之前是必须的——装态下 repo_root() 会命中 venv 根，
+    # 那里的 data/ 根本不存在（M7 之前的缺陷：wheel 里零数据文件）。
+    pkg_data = package_data_dir()
+    if os.path.isdir(pkg_data):
+        return os.path.abspath(pkg_data)
 
     root_data = os.path.join(repo_root(), "data")
     if os.path.isdir(root_data):
@@ -105,6 +134,11 @@ def build_datas(root=None):
     只收白名单内**存在**的路径；禁区成分直接抛错（构建期即拦截，
     不等构建后扫描）。
 
+    **源**取 :func:`package_data_dir`（``<仓库根>/src/rcc/data``），**目标**仍是
+    白名单里的包内相对路径（``data/...``）——即"装好之后数据长什么样"。exe 里
+    的布局因此与 wheel 里的布局**逐字相同**，``find_data_dir()`` 的冻结态分支与
+    包内分支指向同一种结构。
+
     **文件与目录的目标目录算法不同**（这条写错过一次，代价是"随包数据可达"
     这条 DoD 静默失效）：
 
@@ -117,12 +151,15 @@ def build_datas(root=None):
       而构建本身不报任何错。
     """
     root = root or repo_root()
+    source_root = package_data_dir(root)
     datas = []
     for rel in DATA_WHITELIST:
         head = rel.split("/", 1)[0]
         if head in FORBIDDEN_IN_DIST:
             raise ValueError("数据白名单包含禁区成分: %s" % rel)
-        src = os.path.join(root, rel.replace("/", os.sep))
+        # 白名单条目以 "data/" 开头；磁盘源里这一段就是 package_data_dir 本身
+        inner = rel.split("/", 1)[1] if rel.startswith("data/") else rel
+        src = os.path.join(source_root, inner.replace("/", os.sep))
         if not os.path.exists(src):
             continue
         if os.path.isdir(src):
@@ -134,14 +171,14 @@ def build_datas(root=None):
 
 
 def unregistered_data_dirs(root=None):
-    """``data/`` 下**未登记**进白名单的目录（构建期自检用）。
+    """包内 ``data/`` 下**未登记**进白名单的目录（构建期自检用）。
 
     白名单与数据目录互相矛盾时要自检报错：新增一个数据目录却忘了登记，
     后果是"新数据悄悄没进包"——本地源码态照跑，换台机器就缺数据。
     故构建前先对账，不让它走到构建后扫描那一步。
     """
     root = root or repo_root()
-    data_root = os.path.join(root, "data")
+    data_root = package_data_dir(root)
     if not os.path.isdir(data_root):
         return []
     registered = set()

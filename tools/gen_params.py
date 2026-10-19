@@ -1,7 +1,7 @@
 """参数包生成器（冻结产物）。
 
-产出 ``data/rules/params.json``——**禁手改**；改需求走"整目录重生成"，
-配 ``--check`` 位级一致守门。
+产出 ``src/rcc/data/rules/params.json``（包内随包数据）——**禁手改**；改需求走
+"整目录重生成"，配 ``--check`` 位级一致守门。
 
 确定性纪律：禁 stdlib ``random``、禁 ``set`` 迭代序、禁系统时钟；
 JSON 固定 ``sort_keys=True`` + 固定缩进 + ``newline="\\n"``。
@@ -20,7 +20,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _guard import ensure_utf8_stdio  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT_PATH = os.path.join(REPO_ROOT, "data", "rules", "params.json")
+
+# 数据落点**只从 rcc.packaging 取**（M7：数据搬进包内 `src/rcc/data/`，
+# 否则 `pip install` 出来的 wheel 里没有数据）。不在此复制一份 "src/rcc/data"。
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+from rcc.packaging import PACKAGE_DATA_REL  # noqa: E402
+
+DATA_DIR = os.path.join(REPO_ROOT, PACKAGE_DATA_REL.replace("/", os.sep))
+OUT_PATH = os.path.join(DATA_DIR, "rules", "params.json")
 
 # 经验值默认净料率（非官方出处，用户可覆盖）。食材名取自公开批发价品类。
 YIELD_RATES = [

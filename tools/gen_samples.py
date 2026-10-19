@@ -21,7 +21,13 @@ from _guard import ensure_utf8_stdio  # noqa: E402
 from detrng import SplitMix64  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SAMPLES_DIR = os.path.join(REPO_ROOT, "data", "samples")
+
+# 数据落点**只从 rcc.packaging 取**（M7：数据搬进包内 `src/rcc/data/`）。
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+from rcc.packaging import PACKAGE_DATA_REL  # noqa: E402
+
+DATA_DIR = os.path.join(REPO_ROOT, PACKAGE_DATA_REL.replace("/", os.sep))
+SAMPLES_DIR = os.path.join(DATA_DIR, "samples")
 
 SEED = 20261015
 
@@ -121,10 +127,10 @@ def build_bom():
 
 
 def outputs():
-    """``{相对路径: 文本内容}``。"""
+    """``{仓库相对路径: 文本内容}``（键带包内数据根前缀，供 README/门禁逐字对照）。"""
     return {
-        "data/samples/purchases-demo.csv": build_purchases(),
-        "data/samples/bom-demo.json": build_bom(),
+        PACKAGE_DATA_REL + "/samples/purchases-demo.csv": build_purchases(),
+        PACKAGE_DATA_REL + "/samples/bom-demo.json": build_bom(),
     }
 
 

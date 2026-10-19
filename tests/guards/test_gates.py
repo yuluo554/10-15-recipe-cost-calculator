@@ -108,7 +108,7 @@ def test_frozen_check_detects_drift(repo_root, tmp_path):
     """**变异验证**：改动冻结件后 --check 必须报红。"""
     import shutil
 
-    src = os.path.join(repo_root, "data", "rules", "params.json")
+    src = os.path.join(repo_root, "src", "rcc", "data", "rules", "params.json")
     target_dir = tmp_path / "rules"
     target_dir.mkdir(parents=True)
     drifted = target_dir / "params.json"

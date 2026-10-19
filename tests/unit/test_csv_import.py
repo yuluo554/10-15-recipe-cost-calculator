@@ -349,7 +349,7 @@ class TestColumnMapSingleSource:
 class TestSampleFile:
     def test_demo_sample_has_injected_anomalies(self, repo_root):
         """样例文件刻意注入异常行——供"不静默跳过"的演示与测试。"""
-        path = os.path.join(repo_root, "data", "samples", "purchases-demo.csv")
+        path = os.path.join(repo_root, "src", "rcc", "data", "samples", "purchases-demo.csv")
         parsed = csv_import.parse_purchases(path)
         assert parsed["rows"], "样例应含正常行"
         assert parsed["issues"], "样例应含刻意注入的异常行"
@@ -359,7 +359,7 @@ class TestSampleFile:
 
     def test_demo_sample_covers_every_state_and_anomaly_class(self, repo_root):
         """样例是三态的**演示载体**：每格都要有代表，否则矩阵在样例上看不见。"""
-        path = os.path.join(repo_root, "data", "samples", "purchases-demo.csv")
+        path = os.path.join(repo_root, "src", "rcc", "data", "samples", "purchases-demo.csv")
         parsed = csv_import.parse_purchases(path)
         codes = set(_codes(parsed))
         for code in (csv_import.ISSUE_MAPPING_UNCERTAIN,
@@ -380,7 +380,7 @@ class TestSampleFile:
         import gen_samples
 
         produced = gen_samples.outputs()
-        path = "data/samples/purchases-demo.csv"
+        path = "src/rcc/data/samples/purchases-demo.csv"
         assert path in produced
         actual = open(os.path.join(repo_root, path), "rb").read()
         assert actual == produced[path].encode("utf-8"), \

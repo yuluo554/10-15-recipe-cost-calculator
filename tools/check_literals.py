@@ -22,7 +22,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _guard import ensure_utf8_stdio  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PARAMS_PATH = os.path.join(REPO_ROOT, "data", "rules", "params.json")
+
+# 参数包位置**只从 rcc.packaging 取**（M7：数据搬进包内 `src/rcc/data/`）。
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+from rcc.packaging import PACKAGE_DATA_REL  # noqa: E402
+
+PARAMS_PATH = os.path.join(REPO_ROOT, PACKAGE_DATA_REL.replace("/", os.sep),
+                           "rules", "params.json")
 
 # 扫描面：随交付形态扩张。新增交付形态时要问"它该不该进扫描面？"
 #

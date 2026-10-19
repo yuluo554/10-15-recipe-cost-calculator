@@ -14,7 +14,8 @@ import pytest
 CR = b"\r"
 
 # 冻结 fixtures：字节语义必须稳定（台账登记 sha256）
-FROZEN_DIRS = ("data/truth", "data/samples", "data/rules", "data/snapshots")
+FROZEN_DIRS = ("src/rcc/data/truth", "src/rcc/data/samples",
+               "src/rcc/data/rules", "src/rcc/data/snapshots")
 
 
 def _tracked_text_files(repo_root):

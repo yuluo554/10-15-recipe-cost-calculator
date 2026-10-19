@@ -11,6 +11,16 @@ on:
   push:
   pull_request:
 
+# 只读仓库内容：本仓 CI 不写任何 GitHub 状态（无 issue/PR 评论、无 artifact 上传）
+permissions:
+  contents: read
+
+# 同一分支的新推送取消旧的进行中 run——排队中的旧 run 对新提交没有意义，
+# 只会拖长"看到结果"的时延。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: test (${{ matrix.os }} / py${{ matrix.python }})
@@ -18,24 +28,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 旧解释器只在 windows 守（ubuntu 新镜像对 3.8 支持存疑）；
-        # 跑完按实况记录，不硬凑四矩阵。
+        # 解释器 floor 已抬到 3.12（3.8 于 2024-10 EOL、3.9 于 2025-10、
+        # 3.10 于 2026-10 EOL）。矩阵保留 windows + ubuntu 两条，守住
+        # "跨平台确定性"这个真信号；旧通道不再声明。
         include:
-          - os: windows-latest
-            python: "3.8"
           - os: windows-latest
             python: "3.12"
           - os: ubuntu-latest
             python: "3.12"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # 历史扫描类守门依赖 git 历史——浅克隆会让它静默削弱成空验
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
 
@@ -73,7 +82,7 @@ jobs:
         run: |
           python -m rcc.cli --version
           python -m rcc.cli selftest
-          python -m rcc.cli run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json || test $? -eq 1
+          python -m rcc.cli run --purchases src/rcc/data/samples/purchases-demo.csv --bom src/rcc/data/samples/bom-demo.json || test $? -eq 1
           python -m rcc.cli bench
 
       - name: Console-script smoke (rcc) — 用户在 README 里敲的那条通路
@@ -81,9 +90,44 @@ jobs:
         # 顶层 benchmark/ 未进安装面时，`python -m rcc.cli bench`（CWD 在
         # sys.path 上）能过，而**装好的 `rcc bench` 会 ModuleNotFoundError**。
         # 用 python -m 冒烟等于永远问不到"用户装完到底能不能跑"。
+        #
+        # M7 追加：**editable 态不够**。`pip install -e` 把仓库根放上 sys.path，
+        # `find_data_dir()` 于是命中仓库里的 data/——而 wheel 里可能一个数据文件
+        # 都没有（M7 修的就是这个）。故保留本步，**再加**下一步的真 wheel 装态。
         shell: bash
         run: |
           rcc --version
           rcc selftest
-          rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json || test $? -eq 1
+          rcc run --purchases src/rcc/data/samples/purchases-demo.csv --bom src/rcc/data/samples/bom-demo.json || test $? -eq 1
           rcc bench
+
+      - name: Installed-wheel smoke (rcc) — 用户 pip install 之后的那条通路
+        # 与上一步的区别是**装态**：editable 安装永远命中仓库根，问不到"包里的
+        # 数据在不在"。本步从**仓库树外的干净副本**构建 wheel（避免 build/lib
+        # 残留把负控骗绿——实测过：不复制干净副本时，删掉 package-data 也照样
+        # 打出数据），装进全新 venv，再到中立目录跑 selftest/bench。
+        # pytest 侧的同链路守门见 tests/guards/test_install_smoke.py。
+        shell: bash
+        run: |
+          set -e
+          WORK="$RUNNER_TEMP/rcc-install"
+          rm -rf "$WORK"; mkdir -p "$WORK/whl" "$WORK/src"
+          # 干净源码副本：只复制构建所需，不带 build/ 与 dist/
+          cp pyproject.toml README.md LICENSE "$WORK/src/"
+          cp -r src benchmark "$WORK/src/"
+          python -m pip wheel "$WORK/src" --no-deps -w "$WORK/whl"
+          python -m venv "$WORK/venv"
+          if [ -x "$WORK/venv/bin/python" ]; then
+            VPY="$WORK/venv/bin/python"; RCC="$WORK/venv/bin/rcc"
+          else
+            VPY="$WORK/venv/Scripts/python.exe"; RCC="$WORK/venv/Scripts/rcc.exe"
+          fi
+          "$VPY" -m pip install --no-deps "$WORK"/whl/*.whl
+          # 中立目录：不在仓库树内跑，否则源码态的数据定位会顺手命中仓库
+          cd "$WORK"
+          "$RCC" --version
+          "$RCC" selftest > selftest.json
+          "$VPY" -c "import json; d=json.load(open('selftest.json',encoding='utf-8')); assert d['ok'] is True, d; assert d['param_count'] > 0, d; print('selftest ok, param_count=%d' % d['param_count'])"
+          "$RCC" bench | tee bench.txt
+          test "$(grep -c '\[达标\]' bench.txt)" -eq 5
+          grep -q '总判: 达标' bench.txt

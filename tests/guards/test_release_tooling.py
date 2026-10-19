@@ -31,12 +31,18 @@ def release_tool(repo_root):
 
 @pytest.fixture
 def fake_repo(tmp_path, write_text_lf):
-    """合成一个"仓库侧"树（``data/`` 与合成 dist 的内容一致）。"""
+    """合成一个"仓库侧"树（包内数据 ``src/rcc/data`` 与合成 dist 的内容一致）。
+
+    **M7 口径**：数据在包内（``src/rcc/data``），``check_dist()`` 的仓库侧基准
+    由 ``rcc.packaging.package_data_dir()`` 决定——故夹具必须造在那个位置，
+    造在顶层 ``data/`` 就测不到真实现（会得到"仓库内缺少对应文件"的假红）。
+    """
     root = tmp_path / "fake_repo"
-    (root / "data" / "rules").mkdir(parents=True)
-    (root / "data" / "snapshots").mkdir(parents=True)
-    write_text_lf(root / "data" / "rules" / "params.json", '{"a": 1}\n')
-    write_text_lf(root / "data" / "snapshots" / "x.json", '{"b": 2}\n')
+    data_root = root / "src" / "rcc" / "data"
+    (data_root / "rules").mkdir(parents=True)
+    (data_root / "snapshots").mkdir(parents=True)
+    write_text_lf(data_root / "rules" / "params.json", '{"a": 1}\n')
+    write_text_lf(data_root / "snapshots" / "x.json", '{"b": 2}\n')
     return str(root)
 
 
@@ -44,7 +50,8 @@ def fake_repo(tmp_path, write_text_lf):
 def fake_dist(tmp_path, fake_repo, write_text_lf):
     """合成一个迷你 dist 树（结构照真产物：``_internal/data/...`` + 两个 exe）。
 
-    数据内容**从 fake_repo 复制**——保证"一致的合成树"基线成立（断言二可比）。
+    数据内容**从 fake_repo 的包内数据目录复制**——保证"一致的合成树"基线成立
+    （断言二可比）。
     """
     root = tmp_path / "dist" / "rcc"
     internal = root / "_internal"
@@ -53,7 +60,8 @@ def fake_dist(tmp_path, fake_repo, write_text_lf):
     (root / "rcc.exe").write_bytes(b"MZ fake console exe")
     (root / "rcc-gui.exe").write_bytes(b"MZ fake gui exe")
     (internal / "python312.dll").write_bytes(b"MZ fake python dll")
-    shutil.copytree(os.path.join(fake_repo, "data"), str(internal / "data"))
+    shutil.copytree(os.path.join(fake_repo, "src", "rcc", "data"),
+                    str(internal / "data"))
     return str(root)
 
 

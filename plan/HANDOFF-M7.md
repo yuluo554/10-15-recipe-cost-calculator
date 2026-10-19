@@ -11,7 +11,7 @@
 | 项 | 状态 | 证据 |
 |---|---|---|
 | **公开仓库** | ✅ | <https://github.com/yuluo554/10-15-recipe-cost-calculator>（public）；`gh repo create --public ... --source . --remote origin`（**不带 `--push`**）→ 切 SSH remote → push |
-| **CI 首跑** | ✅ | 见 `plan/RELEASE-M6.md` §二（矩阵 `windows×{3.8,3.12}` + `ubuntu×3.12`）；**新增"控制台脚本冒烟"一步**（`rcc` 裸命令形式，见 §四 头号发现） |
+| **CI 首跑** | ✅ | 见 `plan/RELEASE-M6.md` §二（当时的矩阵 `windows×{3.8,3.12}` + `ubuntu×3.12`；**M7 起收缩为 `{windows,ubuntu}×3.12`**）；**新增"控制台脚本冒烟"一步**（`rcc` 裸命令形式，见 §四 头号发现）；M7 再加"装真 wheel"一步 |
 | **确定性 release 产物** | ✅ | `tools/make_release.py`：`rcc-v0.1.0-win64.zip`，170 条目 / 118,507,589 B / sha256 `fc62a21e…09a3`；`verify` 两次独立打包**同 sha256** |
 | **sha256 留档** | ✅ | `plan/DIST-sha256-M6.txt`（哈希行由 `sha256sum` 重定向生成，人只写注释）；`sha256sum -c` 复验三行全 `OK`、**无告警** |
 | **发布留档** | ✅ | `plan/RELEASE-M6.md`（只写实测到的，未跑的项留 ⬜） |
@@ -19,7 +19,8 @@
 | **干净环境验证** | ✅ | `git archive` 导出树 → 全新 venv（Python 3.12.10 / pytest 9.1.1）→ **319 passed / 3 skipped / 321 collected**；收集数与本地同 extras **一致**；README 快速开始 9 行退出码逐条实测 |
 | **脱敏四步 + 产物扫描** | ✅ | tracked/history/messages 均 **HARD 0**；提交元数据只剩 noreply；`git fsck` 无悬空对象；**产物本体** 102 处命中经"官方原件同串比对"**实算**裁决为 `UPSTREAM`，本项目自有数据与代码 **0 处** |
 | **M6 头号发现（已修 + 加门）** | ✅ | 顶层 `benchmark/` 未进安装面 → **`rcc bench` 控制台通路挂**（详见 §四） |
-| **测试** | ✅ | 双解释器 **328 passed**（收集数一致） |
+| **测试** | ✅ | 双解释器 **328 passed**（收集数一致）。**M7 复核**：单解释器 **329 passed, 1 skipped**（floor 抬到 3.12 后不再跑 3.8 通道） |
+| **M7：pip 装态可用** | ✅（待复验） | 数据迁入 `src/rcc/data/`；干净 venv 装 wheel 后 `selftest` exit 0 / `ok=true` / `param_count=12`、`bench` exit 0 五套件达标；详见 `plan/HANDOFF-M6.md §七` |
 
 ---
 
@@ -47,6 +48,14 @@
 | **K51** | **发布工具链落 `tools/`，不做 `rcc` 子命令** | `tools/make_release.py` | `rcc` 是发给用户的 CLI；发布工具进 `rcc` = 随包发给用户 + 拖进门禁扫描面 |
 | **K52** | **checksum 留档不留空行**（GNU `sha256sum -c` 对空行报 `improperly formatted`） | `plan/DIST-sha256-M6.txt` | 刷屏的校验命令会让读者不再看它的输出 |
 | **K53** | **冒烟必须覆盖"用户真敲的那条通路"**：CI 的 CLI 冒烟含**裸 `rcc`** 形式，不只是 `python -m rcc.cli` | `.github/workflows/ci.yml` | M6 头号缺陷正因"用 `python -m` 冒烟"而长期隐形 |
+| **K54（M7 新增）** | **随包数据必须在安装面内**：数据住 `src/rcc/data/`，`pyproject.toml` 声明 `[tool.setuptools.package-data] rcc = ["data/**/*"]`；`find_data_dir()` 的**包内分支排在 `repo_root()` 之前** | `pyproject.toml` + `src/rcc/packaging.py` + `tests/guards/test_install_smoke.py` | 数据在包外 = **wheel 里零数据文件**，装完 `selftest`/`bench`/`run` 全挂，而 editable 态的 CI 全绿（它永远命中仓库根） |
+| **K55（M7 新增）** | **数据路径的唯一来源是 `rcc.packaging.PACKAGE_DATA_REL`**（`= "src/rcc/data"`）：生成器、门禁、发布物对账都从它推，任何位置不得再写一份 `"src/rcc/data"` 字面量 | `src/rcc/packaging.py` + `tools/{gen_params,gen_samples,gen_truth,fetch_snapshots,check_literals,make_release}.py` + `tests/conftest.py` | 两处各写一份 = 第二份真相；下次搬目录时必有一处漏改而门变绿 |
+| **K56（M7 新增）** | **G-PACK 的"布局一致"基准是数据根**（不是仓库根）：`包内路径 == "data/" + relpath(源, package_data_dir())` | `tests/guards/test_pack_gate.py` | 判定强度不变（拍平仍立刻红）；但基准必须跟着数据位置走，否则搬家后门测的是别的东西 |
+| **K57（M7 新增）** | **构建类门禁必须从仓库树外的干净副本构建**：`pip wheel .` 会复用仓库里残留的 `build/lib/`，其中可能已有上一轮的 `rcc/data/` | `tests/guards/test_install_smoke.py::_clean_source_copy` + `.github/workflows/ci.yml` 装态步 | **实测过**：直接从仓库树内构建时，删掉 `package-data` 两条门仍全绿（负控假绿） |
+| **K58（M7 新增）** | **错误口径按"是配置问题还是判定问题"分**：数据目录缺失 → `输入不可用: …` + **exit 2**（与 `run`/`check` 一致），不是 traceback + exit 1 | `src/rcc/cli.py::cmd_bench` + `tests/integration/test_cli.py` | exit 1 的语义是"检出不符合/未达标"；拿它报配置错误会让读者去改错的东西 |
+| **K59（M7 新增）** | **文档里写死的数字必须有守门**：README 的测试数由 `tests/guards/test_repo_gates.py::test_readme_test_count_matches_collection` 与 `--collect-only` 比对 | `tests/guards/test_repo_gates.py` + `README.md` | M6 之后 README 写 317 而实测 321，**没有任何门会红**；没有守门的数字一定会漂 |
+| **K60（M7 新增）** | **`license` 用 SPDX 字符串 + `license-files`**（PEP 639），`build-system` 下限抬到 `setuptools>=77` | `pyproject.toml` | TOML 表形态有硬期限（setuptools 报"2027-02-18 后不再支持"）；抬下限时不抬下限版本会直接被拒 |
+| **K61（M7 新增）** | **floor=3.12**：`requires-python`、CI 矩阵、`test_stdlib_compat.py` 三处同源约束 | `pyproject.toml` + `.github/workflows/ci.yml` + `tests/guards/test_stdlib_compat.py` | 声明与守门各写一份 = 迟早对不上（判据已落在"解析后的值"上） |
 
 ---
 
@@ -111,6 +120,31 @@ gh release view v0.1.0 --json assets,tagName,isDraft      # draft=false + 附件
 
 ---
 
+## 五之二、M7 期实测发现的缺陷与陷阱（已处置，记此防复现）
+
+1. **"装完能不能用"是两种装态，M6 只验了一种**：M6 的发布验收走 **exe（冻结态）** 与
+   **editable 安装**——两者都命中仓库根/内嵌数据。而 `pip install <wheel>` 是第三种形态，
+   它既没有仓库根也没有 `_internal/`，于是 `find_data_dir()` 找不到 `data/`。
+   **判别口诀：凡"数据在哪"的问题，先列出"这份数据在每种交付形态下分别从哪条路来"，
+   逐条造环境验，别拿一种形态的绿去代表其余。**
+2. **editable 安装结构上问不到"包里的数据在不在"**：`pip install -e` 把仓库根放上
+   `sys.path`，任何"从仓库根找文件"的代码都会成功。**这不是 CI 配置问题，是装态的语义差异**——
+   要让门问得到，必须造一个**不含仓库根**的环境（全新 venv + 真 wheel + 中立 CWD）。
+3. **构建类门禁会被上一轮残留骗绿**（本轮最值钱的一条）：第一版 `test_install_smoke.py`
+   直接从仓库树内 `pip wheel .`，因为仓库里有 `build/lib/rcc/data/`（上一轮构建残留），
+   即使把 `[tool.setuptools.package-data]` 整段删掉，wheel 里照样有数据 → **两条门全绿，
+   负控失效**。改为从**仓库树外干净副本**构建后，负控才按预期全红。
+   **口诀：门禁要验"当前声明能产出什么"，就必须在一个"只有当前声明"的树上跑。**
+4. **数据路径会散落在六七个工具里**：`gen_params`/`gen_samples`/`gen_truth`/`fetch_snapshots`/
+   `check_literals`/`make_release` 各自拼过 `REPO_ROOT + "data"`。迁目录时若不收敛到
+   `PACKAGE_DATA_REL`，下一次搬家必有一处漏改，而**漏改的那处往往没有门**。
+5. **`bench` 的裸 traceback 藏在 import 期**：`benchmark/runner.py` 在**模块层**解析
+   `TRUTH_DIR`（为了让 `--only` 与门槛读取共用一处），于是数据缺失时异常在
+   `from benchmark import runner` 那一刻抛出——`cmd_bench` 里原有的 `try` 包不住它。
+   **口诀：捕获错误的 `try` 要从"第一个可能触及坏状态的动作"开始，import 也算动作。**
+
+---
+
 ## 六、接续提示词
 
 ```
@@ -119,6 +153,8 @@ gh release view v0.1.0 --json assets,tagName,isDraft      # draft=false + 附件
 
 （入库的本文件用相对路径 `plan/HANDOFF-M7.md`；启动命令由用户侧拼绝对路径。）
 
-**项目状态一句话**：M0→M6 六期计划已全部走完——确定性规则引擎 + 五套件基准 + 免安装双 exe +
-确定性 release 产物 + 公开仓库与 CI，交付物已从"本地可用"推进到"别人能下载、能校验、能在自己机器上跑起来"。
-**若接续**：先读本文件 §二（后续可做的现状与前置问题）与 `plan/RELEASE-M6.md`（未跑项的 ⬜ 与原因）。
+**项目状态一句话**：M0→M6 六期计划已全部走完，M7 做了一轮二次迭代（修 `pip install` 装态、
+加装态门禁、对齐 floor 与元数据）。交付物已从"本地可用"推进到"别人能下载、能校验、
+能在自己机器上跑起来"，M7 之后**`pip install` 也能跑**。
+**若接续**：先读本文件 §二（后续可做的现状与前置问题）、§五之二（M7 的五个陷阱）与
+`plan/RELEASE-M6.md`（未跑项的 ⬜ 与原因）。**M7 改动尚未 commit / push**，CI 侧验证记"待复验"。

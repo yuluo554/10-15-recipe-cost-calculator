@@ -46,8 +46,8 @@ def test_no_command_is_usage_error(repo_root):
 def test_run_with_samples_is_degraded(repo_root):
     """样例含刻意注入的异常行 → 退出码 1（降级完成，明示语义）。"""
     code, out, err = _run_cli(repo_root, "run",
-                              "--purchases", "data/samples/purchases-demo.csv",
-                              "--bom", "data/samples/bom-demo.json")
+                              "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+                              "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 1, err
     assert "异常" in out and "未静默跳过" in out
 
@@ -55,8 +55,8 @@ def test_run_with_samples_is_degraded(repo_root):
 def test_run_reports_anomaly_rows_not_silently_skipped(repo_root):
     """**异常行必须列入清单并计数**，绝不静默丢弃后报告"导入成功"。"""
     code, out, _err = _run_cli(repo_root, "run", "--json",
-                               "--purchases", "data/samples/purchases-demo.csv",
-                               "--bom", "data/samples/bom-demo.json")
+                               "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+                               "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 1
     import json
 
@@ -70,22 +70,22 @@ def test_run_reports_anomaly_rows_not_silently_skipped(repo_root):
 
 def test_run_missing_input_is_usage_error(repo_root):
     code, _out, err = _run_cli(repo_root, "run", "--purchases", "nope.csv",
-                               "--bom", "data/samples/bom-demo.json")
+                               "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 2, err
 
 
 def test_run_alert_without_two_snapshots_is_usage_error(repo_root):
     code, _out, err = _run_cli(repo_root, "run", "--with-alert",
-                               "--purchases", "data/samples/purchases-demo.csv",
-                               "--bom", "data/samples/bom-demo.json")
+                               "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+                               "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 2, err
     assert "两期快照" in err
 
 
 def test_check_reports_issues(repo_root):
     code, out, _err = _run_cli(repo_root, "check",
-                               "--purchases", "data/samples/purchases-demo.csv",
-                               "--bom", "data/samples/bom-demo.json")
+                               "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+                               "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 1, "check 检出问题应返回 1"
 
 
@@ -132,6 +132,51 @@ def test_bench_reports_coverage_dual_registration(repo_root):
     assert "形态" in out, "覆盖度未写出分母（形态总数）"
 
 
+def test_bench_missing_data_is_clean_message_not_traceback(repo_root, tmp_path):
+    """**D4（M7 修）**：数据目录整个缺失时，`bench` 必须是**干净消息 + exit 2**。
+
+    改前实测：`rcc bench` 在装态下抛裸 `FileNotFoundError` traceback 且 exit 1——
+    而 exit 1 的语义是"检出不符合/未达标"，"数据目录不存在"是**配置错误**，
+    与 `run`/`check` 的"输入不可用: …" + exit 2 同族。
+
+    做法：把包内数据目录临时改名（模拟"数据没随包走"），**在仓库树外**跑真 CLI
+    （`find_data_dir()` 有一条"CWD 上溯找 data/"的兜底，在仓库树内跑可能命中
+    某个祖先目录的 `data/`，那样测到的就不是"数据全缺"了），再还原。
+    **断言三件事**：退出码 2、stderr 无 `Traceback`、消息与 `run` 同口径。
+    """
+    data_dir = os.path.join(repo_root, "src", "rcc", "data")
+    assert os.path.isdir(data_dir), "前置：包内数据目录应存在"
+    hidden = data_dir + "-hidden-for-test"
+    if os.path.exists(hidden):
+        pytest.fail("临时名已存在，拒绝覆盖: %s" % hidden)
+
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONPATH"] = os.path.join(repo_root, "src") + os.pathsep + env.get("PYTHONPATH", "")
+    neutral = tmp_path / "neutral"
+    neutral.mkdir()
+
+    os.rename(data_dir, hidden)
+    try:
+        proc = subprocess.run([sys.executable, "-m", "rcc.cli", "bench"],
+                              capture_output=True, cwd=str(neutral), env=env)
+    finally:
+        os.rename(hidden, data_dir)
+
+    err = proc.stderr.decode("utf-8", "replace")
+    assert proc.returncode == 2, (
+        "数据目录缺失应 exit 2（配置错误），实际 %d:\nstderr=%s" % (proc.returncode, err))
+    assert "Traceback" not in err, "仍在抛裸 traceback:\n%s" % err
+    assert "输入不可用" in err, "错误消息未与 run/check 同口径:\n%s" % err
+
+
+def test_bench_traceback_guard_is_not_vacuous(repo_root):
+    """**机制探活**：确认上一条真能区分"有 traceback"与"干净消息"。"""
+    assert "Traceback" in "Traceback (most recent call last):\n  File ..."
+    assert "Traceback" not in "输入不可用: 未能定位数据目录（data/）\n"
+
+
 def test_selftest_passes_in_source_mode(repo_root):
     code, out, _err = _run_cli(repo_root, "selftest")
     assert code == 0, out
@@ -153,8 +198,8 @@ def test_selftest_writes_file_when_out_given(repo_root, tmp_path):
 def test_report_files_written(repo_root, tmp_path):
     prefix = str(tmp_path / "report")
     code, _out, err = _run_cli(repo_root, "run", "--report", prefix,
-                               "--purchases", "data/samples/purchases-demo.csv",
-                               "--bom", "data/samples/bom-demo.json")
+                               "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+                               "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 1, err
     assert os.path.isfile(prefix + ".md")
     assert os.path.isfile(prefix + ".xlsx")
@@ -179,7 +224,7 @@ def test_pending_param_blocks_with_exit_1(repo_root, tmp_path):
     import json
 
     params = json.loads(
-        open(os.path.join(repo_root, "data", "rules", "params.json"),
+        open(os.path.join(repo_root, "src", "rcc", "data", "rules", "params.json"),
              encoding="utf-8").read())
     first_food = sorted(params["yield_rates"])[0]
     params["yield_rates"][first_food]["status"] = "pending"
@@ -188,8 +233,8 @@ def test_pending_param_blocks_with_exit_1(repo_root, tmp_path):
         fh.write(json.dumps(params, ensure_ascii=False, indent=2))
 
     code, _out, err = _run_cli(repo_root, "run", "--params", str(path),
-                               "--purchases", "data/samples/purchases-demo.csv",
-                               "--bom", "data/samples/bom-demo.json")
+                               "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+                               "--bom", "src/rcc/data/samples/bom-demo.json")
     assert code == 1, err
     assert "门控拦截" in err
 
@@ -200,8 +245,8 @@ def test_pending_param_blocks_with_exit_1(repo_root, tmp_path):
 # "文件可读但某几行不合格"是两种不同的退出码语义。把前者混进逐行清单，读者会去
 # 改某一行；把后者报成 exit 2，则"部分可用"被当成"完全不可用"。
 
-BOM = "data/samples/bom-demo.json"
-SAMPLE = "data/samples/purchases-demo.csv"
+BOM = "src/rcc/data/samples/bom-demo.json"
+SAMPLE = "src/rcc/data/samples/purchases-demo.csv"
 
 
 def _write_bytes(tmp_path, payload, name):
@@ -390,7 +435,7 @@ def _params_copy(repo_root, tmp_path, mutate, name="params-m3.json"):
     """复制随包参数包并施加改动。"""
     import json
 
-    with open(os.path.join(repo_root, "data", "rules", "params.json"),
+    with open(os.path.join(repo_root, "src", "rcc", "data", "rules", "params.json"),
               encoding="utf-8") as fh:
         payload = json.load(fh)
     mutate(payload)
@@ -420,12 +465,12 @@ def test_old_price_zero_in_snapshot_is_exit_2(repo_root, tmp_path):
     """
     import json
 
-    snap_src = os.path.join(repo_root, "data", "snapshots", "xinfadi-2026-08-06.json")
+    snap_src = os.path.join(repo_root, "src", "rcc", "data", "snapshots", "xinfadi-2026-08-06.json")
     with open(snap_src, encoding="utf-8") as fh:
         payload = json.load(fh)
     target = payload["list"][0]["prodName"]
     # 断言该食材确被样例 BOM 引用（否则本测试测的不是被测的那件事）
-    with open(os.path.join(repo_root, "data", "samples", "bom-demo.json"),
+    with open(os.path.join(repo_root, "src", "rcc", "data", "samples", "bom-demo.json"),
               encoding="utf-8") as fh:
         bom_payload = json.load(fh)
     bom_foods = {item["food"] for dish in bom_payload["dishes"]
@@ -445,7 +490,7 @@ def test_old_price_zero_in_snapshot_is_exit_2(repo_root, tmp_path):
         fh.write(json.dumps({"captured_date": "2026-10-15", "data_date": "2026-08-06",
                              "url": "local", "unit": "元/斤", "note": "测试副本"}))
 
-    new_snap = os.path.join(repo_root, "data", "snapshots", "xinfadi-2026-10-06.json")
+    new_snap = os.path.join(repo_root, "src", "rcc", "data", "snapshots", "xinfadi-2026-10-06.json")
     code, _out, err = _run_cli(repo_root, "run", "--with-alert",
                                "--purchases", SAMPLE, "--bom", BOM,
                                "--snapshots", str(snap), new_snap)

@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=61"]
+# setuptools>=77 是 `license-files` 与 SPDX 字符串 license 的下限（PEP 639）；
+# 低于它时 `license = "MIT"` 会被拒。>=62 则是 `data/**/*` 通配的起点。
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,12 +9,12 @@ name = "recipe-cost-calculator"
 version = "0.1.0"
 description = "菜谱/食堂采购成本核算器：进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警（确定性规则引擎，纯本地）"
 readme = "README.md"
-requires-python = ">=3.8"
-license = { text = "MIT" }
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "yuluo554" }]
 keywords = ["recipe", "cost", "catering", "cost-card", "yield-rate", "deterministic"]
 classifiers = [
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
     "Topic :: Office/Business",
@@ -54,9 +56,19 @@ package-dir = { "" = "src", "benchmark" = "benchmark" }
 where = ["src", "."]
 include = ["rcc*", "benchmark*"]
 
+# 随包数据（M7）。**没有这一段，wheel 里一个数据文件都没有**：数据原先在仓库根
+# `data/`（包外），而 `rcc.packaging.find_data_dir()` 源码态靠 `repo_root()` 命中
+# 仓库根才拿得到——`pip install` 之后 `repo_root()` 找到的是 `<venv>`，
+# `selftest`/`bench`/`run` 全部 FileNotFoundError。把数据搬进 `src/rcc/data/`
+# 并在此登记，装态与源码态就走同一条"包旁边找 data/"的路。
+# 注意 `**` 需要 setuptools>=62 的通配支持；本文件 build-system 下限已满足。
+[tool.setuptools.package-data]
+rcc = ["data/**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
 markers = [
     "gui: 需要 PySide6 的界面测试（缺依赖时模块级跳过）",
+    "install: 装真 wheel 的装态门（建 venv + 装包，约 30s；不许 skip）",
 ]

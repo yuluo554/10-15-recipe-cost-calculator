@@ -21,7 +21,7 @@ import sys
 
 import pytest
 
-TRUTH_DIR = ("data", "truth")
+TRUTH_DIR = ("src", "rcc", "data", "truth")
 SUITES = ("import", "costcard", "alert")
 
 
@@ -59,13 +59,12 @@ def test_frozen_truth_check_detects_drift(repo_root, tmp_path):
     """**变异验证**：改动一份真值库副本 → `--check` 必须报红。
 
     在仓库树外造一份完整副本（复制真实件后追加一字节），跑生成器的比对路径。
-    副本必须含 `data/`（B3 用例要读快照）与 `tools/`+`src/`（生成器以自身位置推
-    仓库根并从包内取参数）——否则报的是"缺输入"而不是"内容漂移"，测不到东西。
+    副本必须含包内数据（B3 用例要读快照，数据在 `src/rcc/data/`）与
+    `tools/`+`src/`（生成器以自身位置推仓库根并从包内取参数）——否则报的是
+    "缺输入"而不是"内容漂移"，测不到东西。
     """
-    import shutil
-
     probe_root = _probe_repo(repo_root, tmp_path)
-    target = probe_root / "data" / "truth" / "import.json"
+    target = probe_root / "src" / "rcc" / "data" / "truth" / "import.json"
     with open(str(target), "a", encoding="utf-8", newline="\n") as fh:
         fh.write("\n")
 
@@ -77,12 +76,16 @@ def test_frozen_truth_check_detects_drift(repo_root, tmp_path):
 
 
 def _probe_repo(repo_root, tmp_path):
-    """在仓库树外造一份可独立运行的副本（tools + src + benchmark + data）。"""
+    """在仓库树外造一份可独立运行的副本（tools + src + benchmark）。
+
+    **数据在包内**（`src/rcc/data/`），随 `src/` 一起复制——M7 之后不再有独立的
+    顶层 `data/`。这一点本身也是缺陷 D1 的证明：数据不跟包走时，副本里就没有数据。
+    """
     import shutil
 
     probe_root = tmp_path / "repo"
     probe_root.mkdir(parents=True, exist_ok=True)
-    for name in ("tools", "src", "benchmark", "data"):
+    for name in ("tools", "src", "benchmark"):
         shutil.copytree(os.path.join(repo_root, name), str(probe_root / name))
     return probe_root
 
@@ -282,12 +285,12 @@ def test_rule_driven_suites_declare_false_positive_unmeasured(repo_root):
 def test_missing_truth_library_makes_bench_exit_1(repo_root, tmp_path):
     """端到端（真 CLI）：删掉真值库 → 基准必须报**未启用**且 exit 1。
 
-    在仓库副本里跑，才改得动子进程看到的 `data/truth`——**"未启用不冒充通过"**
+    在仓库副本里跑，才改得动子进程看到的包内 `src/rcc/data/truth`——**"未启用不冒充通过"**
     必须由真命令验证，进程内 monkeypatch 证明不了 CLI 的退出码。
     """
     probe_root = _probe_repo(repo_root, tmp_path)
     for name in ("import.json", "costcard.json", "alert.json"):
-        os.remove(str(probe_root / "data" / "truth" / name))
+        os.remove(str(probe_root / "src" / "rcc" / "data" / "truth" / name))
 
     env = dict(os.environ)
     env["PYTHONDONTWRITEBYTECODE"] = "1"

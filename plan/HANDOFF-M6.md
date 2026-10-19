@@ -25,7 +25,7 @@
 | **README 退出码全部实测** | ✅ | 源码态复跑：`run`/`alert run`/`check` = **1**、`bench` = **0**、`selftest` = **0**、`bench --only nope` = **2**、`run --purchases nope.csv` = **2**、`gui`（打桩缺 PySide6）= **3**。冻结态 exe 复跑 `run`/`check`/`alert run` 亦 = 1（与源码态一致） |
 | **G-README 门复跑** | ✅ | `tests/guards/test_repo_gates.py` 18 项全绿（README 引用的输入路径真存在、由生成器产出、按退出码真跑通） |
 | **CI 配置修正（两处真漂移）** | ✅ | ①补 `gen_truth.py --check`（共同验收门是三个生成器，漏掉它 = 真值库无人守）②`bench` 的 `\|\| test $? -eq 1` 改为直接断言 0（M4 起五套件达标）。`tests/guards/test_repo_gates.py` 的 CI 门仍绿 |
-| **测试全绿（双解释器）** | ✅ | `py -3.12` **317 passed**；`py -3.8` **317 passed**（收集数 317；M4 为 287，本期 +20 G-PACK +10 GUI） |
+| **测试全绿（双解释器）** | ✅ | `py -3.12` **317 passed**；`py -3.8` **317 passed**（收集数 317；M4 为 287，本期 +20 G-PACK +10 GUI）。**M7 复核实测收集数 = 321**（见 §七：本行数字在 M6 之后漂了 +4） |
 | **全部既有门复跑** | ✅ | 零字面量 `LITERAL_GATE_OK: 24 个入口，0 命中` + `--selftest` OK；脱敏 `DESENSITIZE_AUDIT_OK: HARD 0 / REVIEW 0 / advisory 63` + `--selftest` OK；三生成器 `--check` 全 OK；快照 `--check` / `--selftest` OK；`bench` 达标 exit 0 |
 | **dev-only 环境下的门（模拟 CI）** | ✅ | 用 `sys.meta_path` 拦掉 `PyInstaller`/`PySide6` 后跑 `tests/guards` + `tests/gui`：**115 passed, 1 skipped**（唯一 skip 是窗口冒烟，声明式且合法）。G-PACK **不依赖 PyInstaller**（自己复刻其目录语义），故在只装 `.[dev]` 的 CI 上照跑 |
 | CI 真实状态 | ⬜ **未接远端，CI 未跑过** | **诚实口径：本地等价校验通过（双解释器 pytest 317 + 门禁 selftest + 三生成器 --check + 快照 --check + 九条变异验证 + 冻结态 exe 实跑），CI 配置已入仓待首推验证** |
@@ -253,3 +253,69 @@ pwd && git log --oneline -1 && git remote -v
 建 GitHub 公开仓库并把 CI 跑绿（**首跑就是验收**），然后做三件套（tag / Release 附产物 + sha256 留档 /
 `plan/RELEASE-M6.md`）、干净环境逐条跑通、脱敏四步 + 产物扫描，并**真下载附件复验**——
 使交付物从"本地可用"推进到"别人能下载、能校验、能在自己机器上跑起来"。
+
+---
+
+## 七、M7 补记（2026-10-20）：非 editable 安装读不到数据
+
+### 缺陷
+
+`pyproject.toml` 在 M6 已经修过 `benchmark` 包的安装面，但**没有任何 `package-data`**；
+数据在**仓库根** `data/`（包外）。`find_data_dir()` 源码态走 `repo_root()`，而
+`pip install <wheel>` 之后 `repo_root()` 找到的是 `<venv>`，于是：
+
+```
+rcc selftest → {"ok": false, "data_dir": null, "param_count": 0, …}   exit 1
+rcc bench    → FileNotFoundError: 未能定位数据目录（data/）            exit 1（裸 traceback）
+rcc run ...  → "输入不可用: 未能定位数据目录（data/）"                  exit 2
+```
+
+**为什么 CI 全绿**：CI 唯一 job 是 `pip install -e ".[dev]"`，editable 安装把仓库根放上
+`sys.path`，`repo_root()` 命中仓库根 → `data/` 正常。CI 里那条 console-script 冒烟
+（注释写着"用 `python -m` 冒烟等于永远问不到用户装完到底能不能跑"）**思路完全正确，
+只是跑在了错误的装态上**。
+
+### 修复
+
+1. `data/{rules,samples,snapshots,truth,README.md}` → `src/rcc/data/`（`git mv`，字节未动）；
+2. `pyproject.toml` 加 `[tool.setuptools.package-data] rcc = ["data/**/*"]`；
+3. `packaging.find_data_dir()` 新增**包内分支**（`package_data_dir()`，排在 `repo_root()`
+   之前）——装态与源码态因此走同一条"包旁边找 `data/`"的路；**冻结态三个候选分支一个字未动**，
+   "绝不回落开发机仓库"那条纪律保留；
+4. `build_datas()` 的**源**改指包内数据根，**目标**仍是白名单里的包内相对路径
+   （`data/...`）——exe 内布局与 wheel 内布局逐字相同；
+5. 全量同步写死 `data/` 的地方：四个生成器/抓取器的输出目录、`check_literals` 的参数包路径、
+   `make_release.check_dist` 的仓库侧基准、`tests/**` 的路径字面量、README 九步命令与目录树；
+6. `tests/guards/test_pack_gate.py` 的"包内布局 == 仓库相对布局"断言按新口径重述
+   （比较基准由 `repo_root` 改为 `package_data_dir`，**判定强度不变**：拍平仍立刻红）。
+
+### 新增门禁（G-INSTALL）
+
+| 层 | 位置 | 断言 |
+|---|---|---|
+| 结构级 | `tests/guards/test_install_smoke.py::test_wheel_contains_package_data` | wheel 里真有 `rcc/data/**`；关键文件（params/manifest/samples）在场；快照 ≥2 份 |
+| 行为级 | 同文件 `::test_installed_wheel_is_usable` | 干净副本 → wheel → **全新 venv** → **中立目录**跑 `selftest`（exit 0 / `ok=true` / `param_count>0` / `data_dir` 在 site-packages 内且不在开发机仓库）与 `bench`（exit 0 / 五套件 `[达标]` / `总判: 达标`） |
+| CI | `.github/workflows/ci.yml` "Installed-wheel smoke" 一步 | 同链路；**保留**原有 editable 态 console-script 冒烟（两种装态各守一半） |
+
+**负控实测（必须记，这是本门最容易假绿的地方）**：第一版从**仓库树内**直接
+`pip wheel .`，把 `[tool.setuptools.package-data]` 整段删掉后**两条门仍然全绿**——
+因为仓库里残留的 `build/lib/rcc/data/` 被 setuptools 复用，wheel 里照样有数据。
+改为**从仓库树外的干净副本构建**（只复制 `pyproject.toml`/`README.md`/`LICENSE`/`src`/`benchmark`）
+后，删掉 `package-data` 两条门都按预期变红（结构级报"wheel 里没有任何 rcc/data/ 条目"，
+行为级报"selftest 退出码 1"）。**教训：构建类门禁必须在不含上一次构建产物的树上跑。**
+
+### 实测（M7 收口时）
+
+```
+pip wheel（干净副本）→ 46 条目 / data 16 / 110,562 B
+干净 venv + 装 wheel + 中立目录：
+  rcc selftest → exit 0；"ok": true；param_count: 12；
+                 data_dir = <venv>/Lib/site-packages/rcc/data
+  rcc bench    → exit 0；[达标] ×5；总判: 达标
+  rcc run --purchases <site-packages>/rcc/data/samples/purchases-demo.csv … → exit 1（有异常行，明示语义）
+pytest → 329 passed, 1 skipped（改前 321 + 装态门 2 + README 计数门 2 + D4 两条 2 +
+        floor 同源断言 2；按文件逐个 `--collect-only` 对账：install_smoke 2 / repo_gates
+        18→20 / test_cli 43→45 / py38_compat 5→7）
+```
+
+> **CI 上的这一步仍待推送后验证**——本轮按纪律不 commit / 不 push，故记"待复验"。

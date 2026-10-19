@@ -10,7 +10,7 @@
 
 小餐饮店/食堂的采购成本核算普遍停留在"老板记忆 + Excel 手工表"：进货价每天变、毛料换净料凭经验、一道菜到底挣多少钱没人算得清。
 
-实测价格波动数据（公开批发价，快照已入库，抓取日期 2026-10-15）：大白菜均价 2026-08-06 = 0.55 元/斤 → 2026-09-06 = 0.53 元/斤 → 2026-10-06 = 0.40 元/斤（两月 **−27%**）。同类菜品两个月内成本波动可达两成以上，手工 Excel 既不会感知、更不会重算受影响菜品。（逐份快照的抓取日期与 sha256 见 [data/snapshots/README.md](data/snapshots/README.md)。）
+实测价格波动数据（公开批发价，快照已入库，抓取日期 2026-10-15）：大白菜均价 2026-08-06 = 0.55 元/斤 → 2026-09-06 = 0.53 元/斤 → 2026-10-06 = 0.40 元/斤（两月 **−27%**）。同类菜品两个月内成本波动可达两成以上，手工 Excel 既不会感知、更不会重算受影响菜品。（逐份快照的抓取日期与 sha256 见 [src/rcc/data/snapshots/README.md](src/rcc/data/snapshots/README.md)。）
 
 **Excel 和聊天给不了的**：Excel 不会自动净料换算、不会在两期价格快照间自动重算受影响菜品并出预警清单；LLM 聊天给不了持久库、确定口径与可复现基准。
 
@@ -60,16 +60,16 @@ python tools/gen_samples.py
 python tools/gen_truth.py
 
 # 3. 端到端核算（退出码 1 = 有异常行，属明示语义）
-rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json
+rcc run --purchases src/rcc/data/samples/purchases-demo.csv --bom src/rcc/data/samples/bom-demo.json
 
 # 4. 价格波动预警（两期真实快照，已随仓库入库；退出码 1 = 有异常行）
-rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json --with-alert --snapshots data/snapshots/xinfadi-2026-08-06.json data/snapshots/xinfadi-2026-10-06.json
+rcc run --purchases src/rcc/data/samples/purchases-demo.csv --bom src/rcc/data/samples/bom-demo.json --with-alert --snapshots src/rcc/data/snapshots/xinfadi-2026-08-06.json src/rcc/data/snapshots/xinfadi-2026-10-06.json
 
 # 5. 导出报告（人读 Markdown + 机读 XLSX）
-rcc run --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json --report out/report
+rcc run --purchases src/rcc/data/samples/purchases-demo.csv --bom src/rcc/data/samples/bom-demo.json --report out/report
 
 # 6. 校验输入数据
-rcc check --purchases data/samples/purchases-demo.csv --bom data/samples/bom-demo.json
+rcc check --purchases src/rcc/data/samples/purchases-demo.csv --bom src/rcc/data/samples/bom-demo.json
 
 # 7. 跑内置基准
 rcc bench
@@ -129,7 +129,7 @@ cd %TEMP%
 <解压目录>\rcc\rcc-gui.exe --selftest out.json   # 写 JSON，退出码 0
 ```
 
-数据白名单**单一事实源**是 `src/rcc/packaging.py` 的 `DATA_WHITELIST`：`data/rules/params.json`、`data/samples`、`data/snapshots`、`data/truth`。新增数据目录必须同步登记——spec 在构建前会对账，`data/` 下出现未登记目录即构建失败。
+数据白名单**单一事实源**是 `src/rcc/packaging.py` 的 `DATA_WHITELIST`：`data/rules/params.json`、`data/samples`、`data/snapshots`、`data/truth`（**包内相对路径**，磁盘源在 `src/rcc/data/`，由同一模块的 `PACKAGE_DATA_REL` 表达）。新增数据目录必须同步登记——spec 在构建前会对账，包内 `data/` 下出现未登记目录即构建失败。
 
 ### 进货单格式（导入契约）
 
@@ -199,13 +199,15 @@ CSV，**UTF-8 编码**（带 BOM 亦可，Excel「另存为 CSV UTF-8」即此�
 
 ```
 plan/        计划与留档（00 总览 / 01 题目 / 02 算法与口径 / 03 基准设计 / 04 测试验收 / 05 发布交付 / 06 架构选型）
-data/        数据资产（README 依据查证 / rules 参数包 / samples 样例 / snapshots 快照 / truth 真值库 + manifest）
 src/rcc/     唯一包（cli / model / rules / io / engine / alert / report / gui / packaging）
+src/rcc/data/ 随包数据（README 依据查证 / rules 参数包 / samples 样例 / snapshots 快照 / truth 真值库 + manifest）
 benchmark/   基准套件（runner + cases 对账语义单一实现源与活体观测器）
 tools/       生成器与门禁（gen_params / gen_samples / gen_truth / check_literals / audit_desensitize / detrng / fetch_snapshots）
              打包（rcc.spec 构建规格 + launcher_cli / launcher_gui 冻结态入口）
-tests/       unit / guards / integration / benchmark / gui（317 项，双解释器 3.8 与 3.12 全绿）
+tests/       unit / guards / integration / benchmark / gui（329 项，只装 `[dev]`；GUI 交互 1 项声明式跳过）
 ```
+
+**数据为什么在包内**：数据放在仓库根 `data/` 时，`pip install` 出来的 wheel 里**一个数据文件都没有**——`find_data_dir()` 源码态靠"仓库根有 `data/`"才拿得到，装态下那个根是 `<venv>`，于是 `selftest`/`bench`/`run` 全部 `FileNotFoundError`（而 CI 的 editable 安装永远命中仓库根，全绿）。搬进 `src/rcc/data/` 并在 `pyproject.toml` 登记 `package-data` 之后，装态与源码态走同一条"包旁边找 `data/`"的路；exe 形态的 `_internal/data` 布局逐字不变。`tests/guards/test_install_smoke.py` 装真 wheel 守这条。
 
 ## 限制
 
@@ -235,6 +237,8 @@ rcc/rcc.exe bench
 
 **退出码**：`selftest` = 0（全过）、`bench` = 0（达标）。若 `selftest` 报 `frozen_data_inside_dist=false`，说明解压不完整（`_internal/` 没跟着解出来），请解压整份 zip 而不是把 exe 单独拷出来。
 
+**数据目录缺失时（`bench`/`selftest`/`run` 都可能遇到）**：三者口径一致——打印 `输入不可用: 未能定位数据目录（data/）` 并返回**退出码 2**（配置错误），不抛 traceback、不记作"基准未达标"（那是退出码 1 的语义）。装态下出现这条，通常是包内数据没装上（重装）或 `RCC_DATA_DIR` 指错了地方。
+
 ## 数据来源声明
 
 - 价格数据来自**公开批发价快照**（新发地批发价格接口），逐份记录抓取日期与 sha256；快照文件只增不改。
@@ -247,8 +251,9 @@ rcc/rcc.exe bench
 
 ## 已知环境问题
 
-- **本机 Python 通道**：Windows 上 `python` 可能是商店占位符，请用 `py -3.12` / `py -3.8`；venv 内用 `python`。
-- **构建工具版本**：打桌面界面（PySide6）必须 **PyInstaller ≥6**（5.x 在扫描 PySide6 字节码时确定性失败）；只打 CLI 可用 5.x。
+- **解释器要求 Python ≥ 3.12**（`requires-python = ">=3.12"`）。3.8/3.9/3.10 均已 EOL，不再声明支持。
+- **本机 Python 通道**：Windows 上 `python` 可能是商店占位符，请用 `py -3.12`；venv 内用 `python`。
+- **构建工具版本**：打桌面界面（PySide6）必须 **PyInstaller ≥6**（5.x 在扫描 PySide6 字节码时确定性失败）；只打 CLI 可用 5.x。构建后端要求 **setuptools ≥77**（`license` 的 SPDX 字符串与 `license-files` 是 PEP 639，低版本会拒收）。
 - **`py` 启动器会无视 venv**：venv 段落一律用 `python -m pip ...`，不用 `py -m pip ...`。
 - **控制台编码**：程序入口已做 UTF-8 守卫；若在非 UTF-8 控制台看到乱码，用 `py -X utf8`。
 - **窗口版 exe 没有控制台**：`rcc-gui.exe` 的 stdout 不接终端，所以它的自检结论用 `--selftest <输出文件>` 写 JSON 文件回传，**退出码携带成败**（这条通路也是脚本化验收窗口版的唯一方式）。

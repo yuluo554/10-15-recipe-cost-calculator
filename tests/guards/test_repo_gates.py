@@ -153,10 +153,64 @@ def test_readme_inputs_are_generator_produced(repo_root):
     readme = os.path.join(repo_root, "README.md")
     text = open(readme, "r", encoding="utf-8").read()
     referenced = {m.group(2).strip("`\"'") for m in README_INPUT_RE.finditer(text)}
-    sample_refs = {r for r in referenced if r.startswith("data/samples/")}
+    sample_refs = {r for r in referenced if r.startswith("src/rcc/data/samples/")}
     assert sample_refs, "README 未引用任何样例输入（门形同虚设）"
     assert sample_refs <= produced, (
         "README 引用了生成器不产出的样例: %s" % sorted(sample_refs - produced))
+
+
+# ------------------------------------------- README 测试计数与实测一致（M7 新增）
+
+# 目录树段落里那一行：``tests/  unit / guards / … （NNN 项，…）``
+README_TEST_COUNT_RE = re.compile(r"tests/\s+unit\s*/\s*guards.*?（\s*(\d+)\s*项")
+
+
+def _collect_test_count(repo_root):
+    """`pytest --collect-only` 的实测收集数（**子进程**，不受本进程已导入模块影响）。"""
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q",
+         "-p", "no:cacheprovider"],
+        capture_output=True, cwd=repo_root, env=env)
+    out = proc.stdout.decode("utf-8", "replace")
+    match = re.search(r"(\d+)\s+tests?\s+collected", out)
+    assert match, "无法从 --collect-only 输出解析收集数:\n%s" % out[-2000:]
+    return int(match.group(1))
+
+
+def test_readme_test_count_matches_collection(repo_root):
+    """README 写死的测试数必须等于 `--collect-only` 实测值。
+
+    **为什么要有这条**：M6 之后 README 一直写 317，实测是 321——漂了 +4 而没人
+    发现。测试数是读者判断"这个项目的门禁有多厚"的直接依据，写错不会让任何
+    门变红，只会让文档慢慢失去可信度。**没有守门的数字一定会漂**。
+
+    计数口径写进 README：只装 `[dev]`（GUI 交互 1 项声明式跳过）。
+    """
+    text = open(os.path.join(repo_root, "README.md"), "r", encoding="utf-8").read()
+    match = README_TEST_COUNT_RE.search(text)
+    assert match, (
+        "README 目录树里没找到「tests/ … （NNN 项…）」那一行——"
+        "守门无对象可验（口径变了就同步这条正则）")
+    documented = int(match.group(1))
+    actual = _collect_test_count(repo_root)
+    assert documented == actual, (
+        "README 写 %d 项，实测收集 %d 项（差 %+d）——请同步 README 目录树那一行"
+        % (documented, actual, actual - documented))
+
+
+def test_readme_test_count_guard_is_not_vacuous(repo_root):
+    """**机制探活**：正则必须能从真 README 抽出数字，且对改过的样本能识别差异。"""
+    text = open(os.path.join(repo_root, "README.md"), "r", encoding="utf-8").read()
+    match = README_TEST_COUNT_RE.search(text)
+    assert match, "正则抽不出数字（门是空扫）"
+    assert int(match.group(1)) > 0, "抽出的数字为 0（明显不是收集数）"
+
+    fake = text.replace(match.group(1), "1", 1)
+    fake_match = README_TEST_COUNT_RE.search(fake)
+    assert fake_match and int(fake_match.group(1)) == 1, "改动样本后正则未跟上（探活失败）"
 
 
 def test_readme_commands_run(repo_root):
@@ -167,8 +221,8 @@ def test_readme_commands_run(repo_root):
     # 子进程不继承测试进程的 sys.path——显式指向 src/
     src = os.path.join(repo_root, "src")
     env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
-    purchases = "data/samples/purchases-demo.csv"
-    bom = "data/samples/bom-demo.json"
+    purchases = "src/rcc/data/samples/purchases-demo.csv"
+    bom = "src/rcc/data/samples/bom-demo.json"
 
     # rcc run：样例含刻意注入的异常行 → 退出码 1 是明示语义
     proc = subprocess.run(
@@ -386,8 +440,8 @@ def _sample_result(repo_root):
     from rcc.engine import pipeline
 
     class _Args(object):
-        purchases = os.path.join(repo_root, "data", "samples", "purchases-demo.csv")
-        bom = os.path.join(repo_root, "data", "samples", "bom-demo.json")
+        purchases = os.path.join(repo_root, "src", "rcc", "data", "samples", "purchases-demo.csv")
+        bom = os.path.join(repo_root, "src", "rcc", "data", "samples", "bom-demo.json")
         params = None
         snapshots = []
         with_alert = False

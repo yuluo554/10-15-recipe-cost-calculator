@@ -16,7 +16,7 @@ import sys
 
 import pytest
 
-SNAPSHOT_DIR = ("data", "snapshots")
+SNAPSHOT_DIR = ("src", "rcc", "data", "snapshots")
 FETCHER = ("tools", "fetch_snapshots.py")
 
 
@@ -177,8 +177,8 @@ def test_alert_rejects_degenerate_same_period(repo_root, tmp_path):
     same = os.path.join(*SNAPSHOT_DIR, "xinfadi-2026-08-06.json")
     proc = subprocess.run(
         [sys.executable, "-m", "rcc.cli", "run", "--with-alert",
-         "--purchases", "data/samples/purchases-demo.csv",
-         "--bom", "data/samples/bom-demo.json",
+         "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+         "--bom", "src/rcc/data/samples/bom-demo.json",
          "--snapshots", same, same],
         capture_output=True, cwd=repo_root, env=env)
     assert proc.returncode == 2, proc.stderr.decode("utf-8", "replace")
@@ -196,8 +196,8 @@ def test_alert_reports_distinct_data_dates(repo_root):
     new = os.path.join(*SNAPSHOT_DIR, "xinfadi-2026-10-06.json")
     proc = subprocess.run(
         [sys.executable, "-m", "rcc.cli", "run", "--json", "--with-alert",
-         "--purchases", "data/samples/purchases-demo.csv",
-         "--bom", "data/samples/bom-demo.json",
+         "--purchases", "src/rcc/data/samples/purchases-demo.csv",
+         "--bom", "src/rcc/data/samples/bom-demo.json",
          "--snapshots", old, new],
         capture_output=True, cwd=repo_root, env=env)
     payload = json.loads(proc.stdout.decode("utf-8", "replace"))

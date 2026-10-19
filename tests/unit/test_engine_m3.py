@@ -22,8 +22,8 @@ from rcc.model import SourceMissing
 from rcc.rules import formulas, params as params_mod
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SAMPLE_PURCHASES = os.path.join(REPO_ROOT, "data", "samples", "purchases-demo.csv")
-SAMPLE_BOM = os.path.join(REPO_ROOT, "data", "samples", "bom-demo.json")
+SAMPLE_PURCHASES = os.path.join(REPO_ROOT, "src", "rcc", "data", "samples", "purchases-demo.csv")
+SAMPLE_BOM = os.path.join(REPO_ROOT, "src", "rcc", "data", "samples", "bom-demo.json")
 
 
 class _Args(object):
@@ -40,7 +40,7 @@ class _Args(object):
 
 def _params_with(tmp_path, mutate, name="params.json"):
     """复制随包参数包并施加一处改动，落盘为临时参数包。"""
-    with open(os.path.join(REPO_ROOT, "data", "rules", "params.json"),
+    with open(os.path.join(REPO_ROOT, "src", "rcc", "data", "rules", "params.json"),
               "r", encoding="utf-8") as fh:
         payload = json.load(fh)
     mutate(payload)

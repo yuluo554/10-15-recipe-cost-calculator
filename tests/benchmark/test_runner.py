@@ -227,7 +227,7 @@ class TestFalsePositiveIsMeasuredNotHardcoded:
 
 def _manifest_path():
     return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))), "data", "truth", "manifest.json")
+        os.path.abspath(__file__)))), "src", "rcc", "data", "truth", "manifest.json")
 
 
 class TestThresholdsAreData:
@@ -348,7 +348,7 @@ class TestFalsifiability:
         import gen_truth
 
         for suite in ("import", "costcard", "alert"):
-            path = os.path.join(repo_root, "data", "truth", "%s.json" % suite)
+            path = os.path.join(repo_root, "src", "rcc", "data", "truth", "%s.json" % suite)
             with open(path, "r", encoding="utf-8") as fh:
                 payload = json.load(fh)
             for case in payload["cases"]:

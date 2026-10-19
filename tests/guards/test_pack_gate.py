@@ -217,11 +217,16 @@ def test_whitelist_covers_every_data_directory(repo_root, packaging):
 
 
 def test_bundled_layout_matches_repo_layout(repo_root, packaging):
-    """**核心断言**：白名单产物在包内的路径 == 它在仓库内的相对路径。
+    """**核心断言**：白名单产物在包内的路径 == 它在**随包数据根**下的相对路径。
 
     这条性质是"随包数据可达"的全部内容：``find_data_dir()`` 冻结态返回
-    ``<exe>/_internal/data``，各消费点再拼仓库内相对后缀——只有两侧布局一致，
-    源码态能跑的路径在冻结态才同样能跑。
+    ``<exe>/_internal/data``、装态返回 ``<site-packages>/rcc/data``，各消费点再拼
+    数据根相对后缀——只有两侧布局一致，源码态能跑的路径在冻结态/装态才同样能跑。
+
+    **M7 口径重述**：数据从仓库根 ``data/`` 搬进包内 ``src/rcc/data/``，故比较基准
+    由 ``repo_root`` 改为 ``packaging.package_data_dir(repo_root)``，并在包内路径前
+    补回 ``data/`` 这一段（冻结态/装态下它就是数据根本身）。**判定强度不变**：
+    仍然是逐文件的"包内位置 == 源相对位置"，拍平依然立刻红。
 
     变异验证（M5 实测）：把目录条目的目标目录退回 ``dirname`` →
     ``data/snapshots/x.json`` 变成 ``data/x.json`` → 本门立即红。
@@ -232,14 +237,16 @@ def test_bundled_layout_matches_repo_layout(repo_root, packaging):
     bundled = _bundle_paths(datas)
     assert bundled, "包内路径解析为空"
 
+    source_root = packaging.package_data_dir(repo_root)
     offenders = []
     for bundle_rel, source in sorted(bundled.items()):
-        repo_rel = os.path.relpath(source, repo_root)
-        if os.path.normpath(bundle_rel) != os.path.normpath(repo_rel):
-            offenders.append("%s 落在了包内 %s（仓库内为 %s）"
-                             % (repo_rel, bundle_rel, repo_rel))
+        inner = os.path.relpath(source, source_root).replace(os.sep, "/")
+        expected = "data/" + inner
+        if os.path.normpath(bundle_rel) != os.path.normpath(expected):
+            offenders.append("%s 落在了包内 %s（数据根下为 %s）"
+                             % (os.path.relpath(source, repo_root), bundle_rel, inner))
     assert not offenders, (
-        "随包数据在包内的位置与仓库内不一致——冻结态按仓库相对路径取数会落空:\n  "
+        "随包数据在包内的位置与数据根下不一致——冻结态/装态按数据根相对路径取数会落空:\n  "
         + "\n  ".join(offenders))
 
 
@@ -248,15 +255,19 @@ def test_directory_entries_keep_their_own_directory(repo_root, packaging):
 
     与上一条是同一判据的两种粒度：上一条看展开后的文件位置，这一条看
     ``build_datas()`` 返回元组本身。两者同时红/同时绿才算守住了。
+
+    **M7 口径重述**：源路径已改为包内数据根（``src/rcc/data``），故"条目在磁盘上
+    是文件还是目录"按数据根判定，比较键仍用白名单里的包内相对路径。
     """
     datas = packaging.build_datas(repo_root)
+    source_root = packaging.package_data_dir(repo_root)
     by_rel = {}
     for src, dest in datas:
-        repo_rel = os.path.relpath(src, repo_root).replace(os.sep, "/")
-        by_rel[repo_rel] = dest.replace(os.sep, "/")
+        inner = os.path.relpath(src, source_root).replace(os.sep, "/")
+        by_rel["data/" + inner] = dest.replace(os.sep, "/")
 
     directory_entries = [rel for rel in by_rel if os.path.isdir(
-        os.path.join(repo_root, rel.replace("/", os.sep)))]
+        os.path.join(source_root, rel.split("/", 1)[1].replace("/", os.sep)))]
     assert directory_entries, "白名单里没有目录条目（判据未被真正考验）"
     for rel in directory_entries:
         assert by_rel[rel] == rel, (
@@ -268,13 +279,14 @@ def test_directory_entries_keep_their_own_directory(repo_root, packaging):
 def test_file_entries_land_in_their_parent_directory(repo_root, packaging):
     """文件条目的目标目录 = 其父目录（``data/rules/params.json`` → ``data/rules``）。"""
     datas = packaging.build_datas(repo_root)
+    source_root = packaging.package_data_dir(repo_root)
     by_rel = {}
     for src, dest in datas:
-        repo_rel = os.path.relpath(src, repo_root).replace(os.sep, "/")
-        by_rel[repo_rel] = dest.replace(os.sep, "/")
+        inner = os.path.relpath(src, source_root).replace(os.sep, "/")
+        by_rel["data/" + inner] = dest.replace(os.sep, "/")
 
     file_entries = [rel for rel in by_rel if os.path.isfile(
-        os.path.join(repo_root, rel.replace("/", os.sep)))]
+        os.path.join(source_root, rel.split("/", 1)[1].replace("/", os.sep)))]
     assert file_entries, "白名单里没有文件条目（判据未被真正考验）"
     for rel in file_entries:
         parent = os.path.dirname(rel)
@@ -284,10 +296,12 @@ def test_file_entries_land_in_their_parent_directory(repo_root, packaging):
 
 def test_whitelist_is_the_single_source_for_spec_datas(repo_root, packaging):
     """spec 实际声明的数据集合 == 白名单（防"spec 自己又列了一杯"）。"""
-    from_file = {os.path.relpath(src, repo_root).replace(os.sep, "/")
+    source_root = packaging.package_data_dir(repo_root)
+    from_file = {"data/" + os.path.relpath(src, source_root).replace(os.sep, "/")
                  for src, _dest in packaging.build_datas(repo_root)}
     whitelist = {rel for rel in packaging.DATA_WHITELIST
-                 if os.path.exists(os.path.join(repo_root, rel.replace("/", os.sep)))}
+                 if os.path.exists(os.path.join(
+                     source_root, rel.split("/", 1)[1].replace("/", os.sep)))}
     assert from_file == whitelist, (
         "build_datas() 的产出与白名单不一致: 多 %s / 少 %s"
         % (sorted(from_file - whitelist), sorted(whitelist - from_file)))

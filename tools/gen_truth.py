@@ -51,15 +51,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _guard import ensure_utf8_stdio  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TRUTH_DIR = os.path.join(REPO_ROOT, "data", "truth")
 
-# 真值库文件（套件名 → 相对路径）
+# 数据落点**只从 rcc.packaging 取**（M7：数据搬进包内 `src/rcc/data/`）。
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+from rcc.packaging import PACKAGE_DATA_REL  # noqa: E402
+
+DATA_DIR = os.path.join(REPO_ROOT, PACKAGE_DATA_REL.replace("/", os.sep))
+TRUTH_DIR = os.path.join(DATA_DIR, "truth")
+
+# 真值库文件（套件名 → 仓库相对路径）。真值库里引用的快照路径是**包内数据根
+# 相对**的，故前缀随 PACKAGE_DATA_REL 走，不写死。
 TRUTH_FILES = {
-    "import": "data/truth/import.json",
-    "costcard": "data/truth/costcard.json",
-    "alert": "data/truth/alert.json",
+    "import": PACKAGE_DATA_REL + "/truth/import.json",
+    "costcard": PACKAGE_DATA_REL + "/truth/costcard.json",
+    "alert": PACKAGE_DATA_REL + "/truth/alert.json",
 }
-MANIFEST_REL = "data/truth/manifest.json"
+MANIFEST_REL = PACKAGE_DATA_REL + "/truth/manifest.json"
 
 HEADER = "日期,品名,类别,数量,单位,单价,金额"
 
@@ -72,6 +79,12 @@ def _src():
     path = os.path.join(REPO_ROOT, "src")
     if path not in sys.path:
         sys.path.insert(0, path)
+
+
+def _data_path(rel):
+    """包内数据根相对的路径 → 绝对路径（``data/...`` 前缀照旧，基准是数据根）。"""
+    inner = rel.split("/", 1)[1] if rel.startswith("data/") else rel
+    return os.path.join(DATA_DIR, inner.replace("/", os.sep))
 
 
 # --------------------------------------------------------------------- B1 用例
@@ -477,8 +490,8 @@ def _alert_probe():
     from rcc.alert import threshold as alert_mod
     from rcc.io import snapshot
 
-    old = snapshot.load_snapshot(os.path.join(REPO_ROOT, SNAPSHOT_OLD))
-    new = snapshot.load_snapshot(os.path.join(REPO_ROOT, SNAPSHOT_NEW))
+    old = snapshot.load_snapshot(_data_path(SNAPSHOT_OLD))
+    new = snapshot.load_snapshot(_data_path(SNAPSHOT_NEW))
     changes = alert_mod.diff_prices(old["prices"], new["prices"])
     by_status = {}
     for row in changes:

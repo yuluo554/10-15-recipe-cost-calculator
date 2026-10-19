@@ -127,7 +127,19 @@ def cmd_check(args):
 
 
 def cmd_bench(args):
-    from benchmark import runner
+    # ``benchmark.runner`` 在**模块层**解析随包数据目录（``TRUTH_DIR`` 是模块常量，
+    # 好让 ``--only`` 与门槛读取共用同一个位置）。数据目录整个缺失时，那一步会抛
+    # ``FileNotFoundError``——**在 import 期**。M7 之前它就这么裸着穿出去，用户看到
+    # 的是一段 traceback 与 exit 1，而"数据目录不存在"是**配置错误**、不是
+    # "检出不符合"（exit 1 的语义是后者）。故这里把 import 也纳入捕获，与
+    # ``run``/``check`` 的"输入不可用: …"口径对齐，退出码取 2。
+    try:
+        from benchmark import runner
+    except FileNotFoundError as exc:
+        print("输入不可用: %s" % exc, file=sys.stderr)
+        print("（随包数据缺失：源码态请确认 src/rcc/data/ 完整；"
+              "装态请重装本包，或用 --params 显式给出数据位置）", file=sys.stderr)
+        return EXIT_USAGE
 
     try:
         result = runner.run_suites(only=args.only)
@@ -136,6 +148,10 @@ def cmd_bench(args):
         return EXIT_USAGE
     except runner.ConfigError as exc:
         print("基准配置错误: %s" % exc, file=sys.stderr)
+        return EXIT_USAGE
+    except FileNotFoundError as exc:
+        # 兜底：门槛/真值库读取路径上也可能抛（例如运行中数据被移走）
+        print("输入不可用: %s" % exc, file=sys.stderr)
         return EXIT_USAGE
 
     if args.json:

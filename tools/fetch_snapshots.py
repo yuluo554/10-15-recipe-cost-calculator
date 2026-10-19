@@ -47,7 +47,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _guard import ensure_utf8_stdio  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SNAPSHOT_DIR = os.path.join(REPO_ROOT, "data", "snapshots")
+
+# 数据落点**只从 rcc.packaging 取**（M7：数据搬进包内 `src/rcc/data/`）。
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+from rcc.packaging import PACKAGE_DATA_REL  # noqa: E402
+
+DATA_DIR = os.path.join(REPO_ROOT, PACKAGE_DATA_REL.replace("/", os.sep))
+SNAPSHOT_DIR = os.path.join(DATA_DIR, "snapshots")
 
 API_URL = "http://www.xinfadi.com.cn/getPriceData.html"
 USER_AGENT = "Mozilla/5.0 (compatible; recipe-cost-calculator/0.1 snapshot fetcher)"
