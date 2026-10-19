@@ -20,7 +20,7 @@
 | **脱敏四步 + 产物扫描** | ✅ | tracked/history/messages 均 **HARD 0**；提交元数据只剩 noreply；`git fsck` 无悬空对象；**产物本体** 102 处命中经"官方原件同串比对"**实算**裁决为 `UPSTREAM`，本项目自有数据与代码 **0 处** |
 | **M6 头号发现（已修 + 加门）** | ✅ | 顶层 `benchmark/` 未进安装面 → **`rcc bench` 控制台通路挂**（详见 §四） |
 | **测试** | ✅ | 双解释器 **328 passed**（收集数一致）。**M7 复核**：单解释器 **329 passed, 1 skipped**（floor 抬到 3.12 后不再跑 3.8 通道） |
-| **M7：pip 装态可用** | ✅（待复验） | 数据迁入 `src/rcc/data/`；干净 venv 装 wheel 后 `selftest` exit 0 / `ok=true` / `param_count=12`、`bench` exit 0 五套件达标；详见 `plan/HANDOFF-M6.md §七` |
+| **M7：pip 装态可用** | ✅ | 数据迁入 `src/rcc/data/`；干净 venv 装 wheel 后 `selftest` exit 0 / `ok=true` / `param_count=12`、`bench` exit 0 五套件达标；详见 `plan/HANDOFF-M6.md §七`。**已推送 `0ecdbdc`，CI run 39296693217 两矩阵各 12 步全绿** |
 
 ---
 
@@ -157,4 +157,5 @@ gh release view v0.1.0 --json assets,tagName,isDraft      # draft=false + 附件
 加装态门禁、对齐 floor 与元数据）。交付物已从"本地可用"推进到"别人能下载、能校验、
 能在自己机器上跑起来"，M7 之后**`pip install` 也能跑**。
 **若接续**：先读本文件 §二（后续可做的现状与前置问题）、§五之二（M7 的五个陷阱）与
-`plan/RELEASE-M6.md`（未跑项的 ⬜ 与原因）。**M7 改动尚未 commit / push**，CI 侧验证记"待复验"。
+`plan/RELEASE-M6.md`（未跑项的 ⬜ 与原因）。**M7 已 commit `0ecdbdc` 并推送**，CI run 39296693217
+（windows 与 ubuntu 各 12 步）全绿，`Node.js 20 is deprecated` 注解归零。

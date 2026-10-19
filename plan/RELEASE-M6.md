@@ -231,7 +231,7 @@ plan/05 §七 要求"**以当轮实测为准留档**（两种行为都出现过�
 | 新增门禁 | `tests/guards/test_install_smoke.py`（结构级 + 行为级）与 CI "Installed-wheel smoke" 一步 |
 | 对已发布产物的影响 | **无**。exe 的 `_internal/data` 布局与内容均未变（`build_datas()` 的**目标**路径未变，只改了**源**） |
 | 版本号 | **未升**（0.1.0 不变）。若要把修复以 pip 形态对外发布，需要一次新的版本 + tag + Release——**属另一个对话的决定** |
-| CI 侧验证 | ⬜ **待复验**（本轮不 push，新 CI 步骤尚未在 GitHub 上跑过） |
+| CI 侧验证 | ✅ run 39296693217（提交 `0ecdbdc`）：`windows-latest/py3.12` 与 `ubuntu-latest/py3.12` 各 12 步全 `success`，含新增的 "Installed-wheel smoke"；`Node.js 20 is deprecated` 注解 **0 条** |
 
 **一条口径补充（写给下次发布）**：发布验收清单里"干净环境"要区分**两种装态**——
 ① 下载 zip 解压跑 exe（免安装形态）；② `pip install <wheel>`（库/CLI 形态）。

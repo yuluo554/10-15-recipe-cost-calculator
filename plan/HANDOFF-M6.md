@@ -318,4 +318,5 @@ pytest → 329 passed, 1 skipped（改前 321 + 装态门 2 + README 计数门 2
         18→20 / test_cli 43→45 / py38_compat 5→7）
 ```
 
-> **CI 上的这一步仍待推送后验证**——本轮按纪律不 commit / 不 push，故记"待复验"。
+> **CI 侧已实测**：提交 `0ecdbdc` 推送后 CI run 39296693217，windows 与 ubuntu 两矩阵各 12 步
+> 全 `success`（含本步）。
