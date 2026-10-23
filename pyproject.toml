@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recipe-cost-calculator"
-version = "0.1.0"
+version = "0.2.0"
 description = "菜谱/食堂采购成本核算器：进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警（确定性规则引擎，纯本地）"
 readme = "README.md"
 requires-python = ">=3.12"

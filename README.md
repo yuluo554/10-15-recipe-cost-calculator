@@ -2,7 +2,10 @@
 
 [![CI](https://github.com/yuluo554/10-15-recipe-cost-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/yuluo554/10-15-recipe-cost-calculator/actions/workflows/ci.yml)
 
-> **状态**：✅ **v0.1.0 已发布** — 见 [Releases](https://github.com/yuluo554/10-15-recipe-cost-calculator/releases/tag/v0.1.0)（免安装 Windows 附件：下载 → 解压 → 跑自检，无需 Python）。M0 骨架 → M1 数据 → M2 导入 → M3 引擎 → M4 基准 → M5 交付 → **M6 发布**：确定性 release zip + sha256 留档 + 公开仓库与 CI。
+> **状态**：✅ **v0.2.0 已发布** — 见 [Releases](https://github.com/yuluo554/10-15-recipe-cost-calculator/releases/tag/v0.2.0)（免安装 Windows 附件：下载 → 解压 → 跑自检，无需 Python）。M0 骨架 → M1 数据 → M2 导入 → M3 引擎 → M4 基准 → M5 交付 → M6 发布 → **M7 随包数据进 wheel + 发布面回填**。
+>
+> **v0.1.0 → v0.2.0 的破坏性变更**：`requires-python` 由 `>=3.8` 抬到 **`>=3.12`**（3.8 已于 2024-10 EOL；PEP 639 元数据要求 `setuptools>=77`，而它不支持 3.8）。
+> **用户可感知的另一处**：数据从仓库根 `data/` 搬进 `src/rcc/data/`，wheel 里**终于有数据文件**——`pip install` 之后 `selftest` / `bench` / `run` 不再 `FileNotFoundError`。exe 的 `_internal/data` 布局**逐字未变**。
 
 把"进货单导入 → 净料换算 → 菜品成本卡 → 毛利率定价 → 价格波动预警"做成**确定性规则引擎**：结论 100% 可复现、纯本地运行、零账号零上传零遥测，内置公开批发价快照做基准真值。
 
@@ -220,12 +223,12 @@ tests/       unit / guards / integration / benchmark / gui（329 项，只装 `[
 
 ## 下载即用
 
-到 [Releases](https://github.com/yuluo554/10-15-recipe-cost-calculator/releases/tag/v0.1.0) 下载附件 **`rcc-v0.1.0-win64.zip`**（约 113 MB，Windows x64，**无需安装 Python**），解压到任意目录即可运行。
+到 [Releases](https://github.com/yuluo554/10-15-recipe-cost-calculator/releases/tag/v0.2.0) 下载附件 **`rcc-v0.2.0-win64.zip`**（约 120 MB，Windows x64，**无需安装 Python**），解压到任意目录即可运行。
 
 ```bash
-# 1) 校验下载件（sha256 与 plan/DIST-sha256-M6.txt 逐位一致）
-sha256sum rcc-v0.1.0-win64.zip
-# 应为 fc62a21eabf000d383c09e0e12351d74e2a27c4e107c2312234d68a34b4d09a3
+# 1) 校验下载件（sha256 与 plan/DIST-sha256-v0.2.0.txt 逐位一致）
+sha256sum rcc-v0.2.0-win64.zip
+# 应为 01050f85e3cedc8ec15b41467744d06a2405f4ec9743f1566d38ac5ad8e44317
 
 # 2) 解压后先自检：确认随包数据落在解压目录内（frozen_data_inside_dist=true）
 rcc/rcc.exe selftest

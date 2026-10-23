@@ -1,0 +1,20 @@
+# plan/DIST-sha256-v0.2.0.txt — v0.2.0 发布物 sha256 台账
+# 打包面 = dist/rcc 目录树（PyInstaller onedir 产物）；配方 = ZIP_STORED + 路径排序 + 固定 date_time + 固定外部属性
+# 复算：py -3.12 tools/make_release.py zip --dist dist/rcc --out <path.zip>（同 dist → 同 zip 逐字节一致）
+#
+# 口径（与 plan/DIST-sha256-M6.txt 一致，不放松）：
+#   · **同 dist → 同 zip 逐字节一致**（本工具保证，实测背书）
+#   · **exe 构建本身不承诺跨机字节一致** —— PyInstaller 产物受 bootloader 构建、
+#     依赖版本、路径影响。下面的哈希是**本机构建记录**，不是"可复现"承诺。
+zip_name: rcc-v0.2.0-win64.zip
+sha256: 01050f85e3cedc8ec15b41467744d06a2405f4ec9743f1566d38ac5ad8e44317
+bytes: 125446906
+entries: 182
+version: 0.2.0
+built_date: 2026-10-24
+# 核验记录（2026-10-24）：本地构建 / `gh release download` 落盘件 / GitHub asset digest / Release 正文 四方一致。
+# 冻结态验收（中立目录 C:\...\Temp\rcc-neutral，不在仓库树内）：
+#   rcc.exe --version     -> recipe-cost-calculator 0.2.0
+#   rcc.exe selftest      -> ok=true，逐项全 true（含 frozen_data_inside_dist）
+#   rcc.exe bench         -> 总判 达标，exit 0（alert 7/7、boundary 29/29、reconcile 4/4）
+#   rcc-gui.exe --selftest <file> -> exit 0，ok=true
